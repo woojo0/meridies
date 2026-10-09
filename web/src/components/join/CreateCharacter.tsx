@@ -68,10 +68,8 @@ export function CreateCharacter() {
         </button>
         {open && (
           <div className="border-t border-line px-5 pb-5 pt-4">
-            <div className="mb-4 grid grid-cols-2 gap-x-3">
-              <Field label="“ 한마디 ”" htmlFor={`pf-q-${st}`} hint={`${(p.quote ?? "").length}/10`}><Input id={`pf-q-${st}`} maxLength={10} value={p.quote ?? ""} onChange={(e) => setP(st, "quote", e.target.value)} /></Field>
-              <Field label="[ 캐치프레이즈 ]" htmlFor={`pf-c-${st}`} hint={`${(p.catchphrase ?? "").length}/10`}><Input id={`pf-c-${st}`} maxLength={10} value={p.catchphrase ?? ""} onChange={(e) => setP(st, "catchphrase", e.target.value)} /></Field>
-            </div>
+            <Field label="[ 캐치프레이즈 ]" htmlFor={`pf-c-${st}`} hint={`${(p.catchphrase ?? "").length}/10`}><Input id={`pf-c-${st}`} maxLength={10} value={p.catchphrase ?? ""} onChange={(e) => setP(st, "catchphrase", e.target.value)} /></Field>
+            <Field label="“ 한마디 ”" htmlFor={`pf-q-${st}`} hint={`${(p.quote ?? "").length}/10`}><Input id={`pf-q-${st}`} maxLength={10} value={p.quote ?? ""} onChange={(e) => setP(st, "quote", e.target.value)} /></Field>
             <div className="mb-4 grid grid-cols-2 gap-3">
               <ImagePick label="두상" compact round value={p.avatar ?? null} onChange={(src) => setP(st, "avatar", src)} />
               <ImagePick label="전신" compact value={p.body ?? null} onChange={(src) => setP(st, "body", src)} />

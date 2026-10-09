@@ -92,10 +92,8 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
 
         <SectionHead title="한 줄" aside="각 10자 이내" />
         <div className="card p-5 pb-1">
-          <div className="grid grid-cols-2 gap-x-3">
-            <Field label="“ 한마디 ”" htmlFor="pf-q" hint={`${(p.quote ?? "").length}/10`}><Input id="pf-q" maxLength={10} value={p.quote ?? ""} onChange={set("quote")} /></Field>
-            <Field label="[ 캐치프레이즈 ]" htmlFor="pf-c" hint={`${(p.catchphrase ?? "").length}/10`}><Input id="pf-c" maxLength={10} value={p.catchphrase ?? ""} onChange={set("catchphrase")} /></Field>
-          </div>
+          <Field label="[ 캐치프레이즈 ]" htmlFor="pf-c" hint={`${(p.catchphrase ?? "").length}/10`}><Input id="pf-c" maxLength={10} value={p.catchphrase ?? ""} onChange={set("catchphrase")} /></Field>
+          <Field label="“ 한마디 ”" htmlFor="pf-q" hint={`${(p.quote ?? "").length}/10`}><Input id="pf-q" maxLength={10} value={p.quote ?? ""} onChange={set("quote")} /></Field>
         </div>
 
         <SectionHead title="외관" aside="두상 · 전신" />
