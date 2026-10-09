@@ -51,8 +51,8 @@ export function Compose() {
           </IconButton>
           <span className="text-xs text-muted tnum">{imgs.length ? `${imgs.length}/4` : ""}</span>
           <span className="flex-1" />
-          <button onClick={submit} aria-label="게시" disabled={!text.trim() && !imgs.length} className="grid size-10 shrink-0 place-items-center rounded-full bg-gold text-gold-ink transition hover:brightness-105 disabled:opacity-35">
-            <Send size={17} strokeWidth={1.8} />
+          <button onClick={submit} aria-label="게시" disabled={!text.trim() && !imgs.length} className="grid size-10 shrink-0 place-items-center rounded-full bg-gold text-[#fff8ea] transition hover:brightness-105 disabled:opacity-35">
+            <Send size={17} strokeWidth={1.9} className="-translate-x-px translate-y-px" />
           </button>
         </div>
       </div>

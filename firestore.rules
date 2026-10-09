@@ -39,6 +39,11 @@ service cloud.firestore {
         || isAdmin();
       allow delete: if isAdmin();
 
+      // 비밀 설정: 본인이 쓰고, 본인과 운영자만 읽어요
+      match /private/{docId} {
+        allow read, write: if ownsChar(charId) || isAdmin();
+      }
+
       // 거래 내역: 본인과 운영자만 읽고, 쓰기는 서버만
       match /tx/{txId} {
         allow read: if ownsChar(charId) || isAdmin();

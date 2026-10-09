@@ -15,7 +15,7 @@ import { seed } from "./seed";
 import { call, fbAuth, fbDb, fbStorage } from "./firebase";
 import { uid as mkId } from "./format";
 import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, SubjectId, Thread } from "./types";
-import { useStore, type JobResult, type StudyResult } from "./store";
+import { useStore, type JobResult, type NewCharacter, type StudyResult } from "./store";
 
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
 
@@ -252,12 +252,14 @@ export const L = {
     clearTyping(`dorm:${key}`, m.id);
   },
   addEvent: (e: Omit<CalEvent, "id">) => addDoc(collection(fbDb(), "events"), e),
-  async saveProfile(stage: Stage, p: Profile) {
-    const m = me();
-    const avatar = p.avatar ? await upload(`characters/${m.id}/${stage}/avatar.jpg`, p.avatar) : p.avatar ?? null;
-    const body = p.body ? await upload(`characters/${m.id}/${stage}/body.jpg`, p.body) : p.body ?? null;
-    await updateDoc(doc(fbDb(), "characters", m.id), { [`profiles.${stage}`]: { ...p, avatar, body } });
+  async saveProfile(stage: Stage, p: Profile, charId?: string) {
+    const id = charId ?? me().id;
+    const avatar = p.avatar ? await upload(`characters/${id}/${stage}/avatar-${Date.now()}.jpg`, p.avatar) : p.avatar ?? null;
+    const body = p.body ? await upload(`characters/${id}/${stage}/body-${Date.now()}.jpg`, p.body) : p.body ?? null;
+    await updateDoc(doc(fbDb(), "characters", id), { [`profiles.${stage}`]: { ...p, avatar, body } });
   },
+  async loadSecret(charId: string) { const s = await getDoc(doc(fbDb(), `characters/${charId}/private`, "secret")); return (s.data()?.text as string | undefined) ?? null; },
+  saveSecret: (charId: string, text: string) => setDoc(doc(fbDb(), `characters/${charId}/private`, "secret"), { text, updatedAt: now() }, { merge: true }),
   markNotif: (id: string) => updateDoc(doc(fbDb(), "notifs", id), { read: true }),
   markLetterRead: async (threadId: string, idx: number) => {
     const t = useStore.getState().data.threads.find((t) => t.id === threadId); const l = t?.letters[idx] as (Thread["letters"][number] & { id?: string }) | undefined;
@@ -268,7 +270,21 @@ export const L = {
   addItem: (i: { name: string; price: number; cat: string; stock: number; desc: string }) => setDoc(doc(fbDb(), "items", mkId()), { ...i, limit: 0, icon: "scarf", use: "" }),
 
   /* ───── 서버 계산 ───── */
-  createCharacter: (c: { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[] }) => call<typeof c, { id: string }>("createCharacter", c).then((r) => r.id),
+  async createCharacter(c: NewCharacter) {
+    // 이미지는 Storage에 먼저 올리고 URL만 서버에 넘겨요.
+    const uid = useStore.getState().session.uid ?? "anon";
+    const profiles: NonNullable<NewCharacter["profiles"]> = {};
+    for (const st of ["0", "1", "2"] as const) {
+      const p = c.profiles?.[st]; if (!p) continue;
+      profiles[st] = {
+        ...p,
+        avatar: p.avatar ? await upload(`characters/new-${uid}/${st}/avatar.jpg`, p.avatar) : null,
+        body: p.body ? await upload(`characters/new-${uid}/${st}/body.jpg`, p.body) : null,
+      };
+    }
+    const r = await call<NewCharacter, { id: string }>("createCharacter", { ...c, profiles });
+    return r.id;
+  },
   ration: () => call<undefined, { n: number }>("ration").then((r) => r.n),
   studyStart: (subject: SubjectId, useJokbo: boolean) => call("studyStart", { subject, useJokbo }).then(() => null as string | null),
   studyFinish: () => call<undefined, StudyResult>("studyFinish"),

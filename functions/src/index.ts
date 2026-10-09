@@ -101,10 +101,13 @@ export const seedDefaults = fn(async (req) => {
 });
 
 /* ───────── 캐릭터 등록 ───────── */
-export const createCharacter = fn<{ name: string; dorm: string; gender: string; height: string; birthday?: string; scores: number[] }>(async (req) => {
+type StageProfileIn = { pers?: string; text?: string; detail?: string; age?: string; avatar?: string | null; body?: string | null };
+const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+const url = (v: unknown) => (typeof v === "string" && /^https:\/\/(firebasestorage\.googleapis\.com|storage\.googleapis\.com)\//.test(v) ? v : null);
+export const createCharacter = fn<{ name: string; dorm: string; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Record<string, StageProfileIn>; secret?: string }>(async (req) => {
   if (!req.auth) throw new HttpsError("unauthenticated", "로그인이 필요해요.");
   const uid = req.auth.uid;
-  const { name, dorm, gender, height, birthday, scores } = req.data;
+  const { name, dorm, gender, height, birthday, scores, profiles: pin = {}, secret } = req.data;
   if (!name?.trim() || name.length > 20) throw new HttpsError("invalid-argument", "이름은 1~20자예요.");
   if (!DORMS.includes(dorm as (typeof DORMS)[number])) throw new HttpsError("invalid-argument", "학부가 올바르지 않아요.");
   if (!Array.isArray(scores) || scores.length !== 9 || scores.some((v) => !Number.isInteger(v) || v < 0)) throw new HttpsError("invalid-argument", "성적 분배가 올바르지 않아요.");
@@ -117,14 +120,27 @@ export const createCharacter = fn<{ name: string; dorm: string; gender: string; 
     if (!u || (u.status !== "member" && req.auth?.token.admin !== true)) throw new HttpsError("permission-denied", "가입 승인 뒤에 등록할 수 있어요.");
     if (u.charId) throw bad("계정당 캐릭터는 1명이에요.");
     const ref = db.collection("characters").doc();
+    const ages = ["11세", "15세", "성인"];
+    const profiles: Record<string, unknown> = {};
+    for (const st of ["0", "1", "2"]) {
+      const p = pin[st] ?? {};
+      const filled = st === "0" || !!(str(p.pers, 200) || str(p.text, 5000) || str(p.detail, 10000) || url(p.avatar) || url(p.body));
+      if (!filled) continue;
+      profiles[st] = {
+        gender: str(gender, 20), height: str(height, 20), birthday: str(birthday, 20), age: str(p.age, 20) || ages[+st],
+        pers: str(p.pers, 200), text: str(p.text, 5000), detail: str(p.detail, 10000), extra: [],
+        avatar: url(p.avatar), body: url(p.body),
+      };
+    }
     const sc = {} as Record<SubjectId, number>;
     SUBJECTS.forEach((s, i) => (sc[s.id] = scores[i]));
     tx.set(ref, {
       name: name.trim(), dorm, ownerUid: uid, money: START_MONEY, inv: {}, scores: sc,
-      profiles: { 0: { gender: gender ?? "", age: "11세", height: height ?? "", birthday: (birthday ?? "").slice(0, 20), pers: "", text: "", avatar: null, body: null } },
+      profiles,
       createdAt: Date.now(),
     });
     tx$(tx, ref.id, "입학 지원금", START_MONEY);
+    if (typeof secret === "string" && secret.trim()) tx.set(ref.collection("private").doc("secret"), { text: secret.slice(0, 10000), updatedAt: Date.now() });
     tx.set(uref, { charId: ref.id }, { merge: true });
     return { id: ref.id };
   });

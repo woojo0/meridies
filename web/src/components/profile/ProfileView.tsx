@@ -2,20 +2,20 @@
 /* eslint-disable @next/next/no-img-element -- 사용자가 올린 이미지는 next/image 최적화 대상이 아니에요. */
 
 import { ArrowRightLeft, BookOpen, Briefcase, Pencil } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { GRADES, JOB_MS, RATION, SOLIS_LABEL, STAGES, STAGE_GRADE, STUDY_MS, SUBJECTS, dorm as dormOf } from "@/lib/constants";
-import { ago, cx, fmtDur, gIdx, money, shrinkImage } from "@/lib/format";
+import { ago, cx, fmtDur, gIdx, money } from "@/lib/format";
 import { useDesktop, useMe, useTick } from "@/lib/hooks";
-import { toast, useOverlay } from "@/lib/overlay";
+import { useOverlay } from "@/lib/overlay";
 import { prof, useStore } from "@/lib/store";
-import type { Character, Profile, Stage } from "@/lib/types";
+import type { Character, Stage } from "@/lib/types";
 import { RoomList } from "../rp/RoomList";
 import { InvItemSheet } from "../shop/ItemSheet";
 import { Avatar, Crest, DormTag, FullBody } from "../ui/identity";
 import { ItemIcon } from "../ui/ItemIcon";
 import { Markdown } from "../ui/Markdown";
-import { SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Chip, ChipRow, Empty, Field, Input, Note, Pill, SectionHead, Tabs, Textarea } from "../ui/primitives";
+import { Button, Chip, ChipRow, Empty, Note, Pill, SectionHead, Tabs } from "../ui/primitives";
 import { openJobSheet, openStudySheet, openTransferSheet } from "./growthSheets";
 
 type Tab = "profile" | "body" | "grades" | "inv" | "rp";
@@ -47,9 +47,9 @@ export function ProfileView({ c }: { c: Character }) {
 
   const actions = mine ? (
     <>
-      <Button size="sm" className="tnum px-2" onClick={() => openStudySheet()}><BookOpen size={15} strokeWidth={1.8} />{studyLbl}</Button>
-      <Button size="sm" className="tnum px-2" onClick={openJobSheet}><Briefcase size={15} strokeWidth={1.8} />{jobLbl}</Button>
-      <Button size="sm" variant="ghost" className="px-2" onClick={() => openTransferSheet()}><ArrowRightLeft size={15} strokeWidth={1.8} />송금</Button>
+      <Button size="sm" className="tnum whitespace-nowrap px-2" onClick={() => openStudySheet()}><BookOpen size={15} strokeWidth={1.8} />{studyLbl}</Button>
+      <Button size="sm" className="tnum whitespace-nowrap px-2" onClick={openJobSheet}><Briefcase size={15} strokeWidth={1.8} />{jobLbl}</Button>
+      <Button size="sm" variant="ghost" className="whitespace-nowrap px-2" onClick={() => openTransferSheet()}><ArrowRightLeft size={15} strokeWidth={1.8} />송금</Button>
     </>
   ) : (
     <Button variant="ghost" className="col-span-3" onClick={() => openTransferSheet(c.id)}><ArrowRightLeft size={16} strokeWidth={1.8} />{c.name}에게 송금</Button>
@@ -68,9 +68,9 @@ export function ProfileView({ c }: { c: Character }) {
       {st > stage && <Note>운영자가 {STAGES[st]}로 전환하기 전까지 나와 운영자만 볼 수 있어요.</Note>}
     </>
   );
+  const inlineBits = [p.gender, p.height, p.birthday].filter(Boolean);
   const kvRows: [string, React.ReactNode][] = [
-    ["성별", p.gender || "-"], ["생일", p.birthday || "-"], ["나이", p.age || "-"], ["키", p.height || "-"],
-    ["학년", STAGE_GRADE[st]], ["학부", <span key="d" className="inline-flex items-center gap-1.5"><Crest id={c.dorm} size={14} />{d.name}</span>], ["성격", p.pers || "-"],
+    ["나이", p.age || "-"], ["학년", STAGE_GRADE[st]], ["학부", <span key="d" className="inline-flex items-center gap-1.5"><Crest id={c.dorm} size={14} />{d.name}</span>], ["성격", p.pers || "-"],
     ...((p.extra ?? []).filter((x) => x.k.trim()).map((x) => [x.k, x.v || "-"] as [string, React.ReactNode])),
   ];
   const detailBlock = p.detail?.trim() ? (
@@ -79,16 +79,18 @@ export function ProfileView({ c }: { c: Character }) {
       <div className="mt-3 text-[15px]"><Markdown text={p.detail} /></div>
     </section>
   ) : null;
-  const editBtn = mine && <Button variant="ghost" size="sm" onClick={() => openSheet(<EditProfileSheet stage={st as Stage} />)}><Pencil size={14} strokeWidth={1.8} />{STAGES[st]} 프로필 {c.profiles[st as Stage] ? "수정" : "작성"}</Button>;
+  const admin = useStore((s) => s.session.admin);
+  const editBtn = (mine || admin) && <Link href={`/profile/${c.id}/edit?stage=${st}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[13px] font-semibold hover:border-line-strong"><Pencil size={14} strokeWidth={1.8} />{STAGES[st]} 프로필 {c.profiles[st as Stage] ? "수정" : "작성"}</Link>;
+  const secretCard = (mine || admin) ? <SecretCard charId={c.id} /> : null;
 
   /* ───────── 데스크톱: 왼쪽 전신, 오른쪽 두상+프로필 카드, 아래 기타 정보 ───────── */
   if (desktop) {
     return (
-      <div className="mt-2 grid grid-cols-[320px_minmax(0,1fr)] gap-6">
+      <div className="mt-2 grid grid-cols-[440px_minmax(0,1fr)] gap-7">
         <aside className="sticky top-[80px] self-start">
           <div className="card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
-            <div className="relative flex min-h-[420px] items-end justify-center"><FullBody c={c} stage={stage} /></div>
+            <div className="relative flex min-h-[520px] items-end justify-center [&>img]:max-h-[640px] [&>svg]:w-[min(300px,80%)]"><FullBody c={c} stage={stage} /></div>
             <div className="relative mt-4 border-t border-line pt-4">
               <div className="flex items-center gap-2"><DormTag c={c} stage={stage} /><Pill tone="gold">{STAGES[prof(c, stage).stage]}</Pill>{mine && <Pill tone="ink">내 캐릭터</Pill>}</div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
@@ -104,23 +106,25 @@ export function ProfileView({ c }: { c: Character }) {
         <div className="min-w-0">
           {stageChips}
           {stageNotes}
-          <section className="card relative mt-2 overflow-hidden p-8">
+          <section className="card relative mt-2 overflow-hidden px-7 py-6">
             <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
             <div className="relative flex items-start gap-6">
               <span className="shrink-0 rounded-full p-[3px] ring-1 ring-line"><Avatar c={c} stage={stage} size="xl" className="size-[104px]" /></span>
               <div className="min-w-0 flex-1">
-                <h1 className="font-display text-[34px] leading-tight tracking-[.08em]">{c.name}</h1>
-                <dl className="mt-4 grid grid-cols-[72px_minmax(0,1fr)] gap-x-5 gap-y-2 text-[15px]">
-                  {kvRows.map(([k, v]) => (<div key={k} className="contents"><dt className="text-[12.5px] tracking-[.06em] text-muted">{k}</dt><dd className="m-0">{v}</dd></div>))}
+                <h1 className="font-display text-[32px] leading-tight tracking-[.06em]">{c.name}</h1>
+                {inlineBits.length > 0 && <div className="mt-1.5 flex flex-wrap gap-x-2 text-[14px] text-muted">{inlineBits.map((b, i) => <span key={i}>{i > 0 && <span className="mr-2 opacity-50">·</span>}{b}</span>)}</div>}
+                <dl className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[14.5px]">
+                  {kvRows.map(([k, v]) => (<div key={k} className="contents"><dt className="text-[12px] tracking-[.06em] text-muted">{k}</dt><dd className="m-0">{v}</dd></div>))}
                 </dl>
               </div>
             </div>
-            <div className="relative mt-7 border-t border-line pt-6 text-[15px]">
+            <div className="relative mt-5 border-t border-line pt-5 text-[15px]">
               {p.text ? <Markdown text={p.text} /> : <span className="text-muted">아직 소개가 없어요.</span>}
             </div>
-            {editBtn && <div className="relative mt-6 flex justify-end">{editBtn}</div>}
+            {editBtn && <div className="relative mt-5 flex justify-end">{editBtn}</div>}
           </section>
           {detailBlock}
+          {secretCard}
 
           <Tabs<Tab> className="mt-6" value={tab === "profile" || tab === "body" ? "grades" : tab} onChange={setTab} tabs={[{ k: "grades", l: "성적" }, { k: "inv", l: "인벤토리" }, { k: "rp", l: "역극" }]} />
           {(tab === "grades" || tab === "profile" || tab === "body") && <GradesPanel c={c} opt={opt} kwG={kwG} />}
@@ -162,13 +166,15 @@ export function ProfileView({ c }: { c: Character }) {
           {stageChips}
           {stageNotes}
           <div className="card mt-3 p-5">
-            <dl className="mb-4 grid grid-cols-[72px_minmax(0,1fr)] gap-x-4 gap-y-2.5">
+            {inlineBits.length > 0 && <div className="mb-3 flex flex-wrap gap-x-2 text-[14px] text-muted">{inlineBits.map((b, i) => <span key={i}>{i > 0 && <span className="mr-2 opacity-50">·</span>}{b}</span>)}</div>}
+            <dl className="mb-4 grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-2">
               {kvRows.map(([k, v]) => (<div key={k} className="contents"><dt className="pt-0.5 text-[12.5px] tracking-[.04em] text-muted">{k}</dt><dd className="m-0">{v}</dd></div>))}
             </dl>
             <div className="border-t border-line pt-4 text-[15px]">{p.text ? <Markdown text={p.text} /> : <span className="text-muted">아직 소개가 없어요.</span>}</div>
             {editBtn && <div className="mt-5">{editBtn}</div>}
           </div>
           {detailBlock}
+          {secretCard}
           <SectionHead size="sm" title="역극 리스트" aside={`${roomsN}개`} />
           <div className="card-flat"><RoomList charId={c.id} /></div>
         </>
@@ -255,70 +261,16 @@ function InvPanel({ c, mine, items, now, openSheet }: { c: Character; mine: bool
   );
 }
 
-/* ── 단계별 프로필 작성/수정 (두상·전신 업로드, 마크다운 소개) ── */
-function EditProfileSheet({ stage }: { stage: Stage }) {
-  const me = useMe();
-  const saveProfile = useStore((s) => s.saveProfile);
-  const closeSheet = useOverlay((s) => s.closeSheet);
-  const base: Profile = me ? (me.profiles[stage] ?? { ...prof(me, stage).p }) : { gender: "", age: "", height: "", pers: "", text: "" };
-  const [p, setP] = useState<Profile>({ ...base, extra: base.extra ?? [] });
-  const extras = p.extra ?? [];
-  const setExtra = (i: number, k: "k" | "v", val: string) => setP((x) => ({ ...x, extra: (x.extra ?? []).map((e, j) => (j === i ? { ...e, [k]: val } : e)) }));
-  const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState(false);
-  if (!me) return null;
-  const set = (k: keyof Profile) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setP((x) => ({ ...x, [k]: e.target.value }));
-  const pick = (k: "avatar" | "body") => async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
-    try { const src = await shrinkImage(f); setP((x) => ({ ...x, [k]: src })); } catch { toast("이미지를 읽지 못했어요."); }
-  };
+/** 운영자에게만 보이는 비밀 설정. 본인과 운영자에게만 카드가 보여요. */
+function SecretCard({ charId }: { charId: string }) {
+  const loadSecret = useStore((s) => s.loadSecret);
+  const [text, setText] = useState<string | null>(null);
+  useEffect(() => { loadSecret(charId).then((t) => setText(t ?? "")).catch(() => setText("")); }, [charId, loadSecret]);
+  if (!text) return null;
   return (
-    <>
-      <SheetTitle>{STAGES[stage]} 프로필</SheetTitle>
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-line-strong p-3 text-center text-xs text-muted hover:border-gold">
-          {p.avatar ? <img src={p.avatar} alt="두상" className="size-16 rounded-full object-cover" /> : <span className="grid size-16 place-items-center rounded-full bg-sunk">두상</span>}
-          두상 올리기<input type="file" accept="image/*" hidden onChange={pick("avatar")} />
-        </label>
-        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-line-strong p-3 text-center text-xs text-muted hover:border-gold">
-          {p.body ? <img src={p.body} alt="전신" className="h-16 w-auto rounded-lg object-cover" /> : <span className="grid h-16 w-10 place-items-center rounded-lg bg-sunk">전신</span>}
-          전신 올리기<input type="file" accept="image/*" hidden onChange={pick("body")} />
-        </label>
-      </div>
-      <div className="grid grid-cols-2 gap-x-3">
-        <Field label="성별" htmlFor="pf-g"><Input id="pf-g" value={p.gender} onChange={set("gender")} /></Field>
-        <Field label="생일" htmlFor="pf-b"><Input id="pf-b" placeholder="817.09.21" value={p.birthday ?? ""} onChange={set("birthday")} /></Field>
-        <Field label="나이" htmlFor="pf-a"><Input id="pf-a" value={p.age} onChange={set("age")} /></Field>
-        <Field label="키" htmlFor="pf-h"><Input id="pf-h" value={p.height} onChange={set("height")} /></Field>
-      </div>
-      <Field label="성격" htmlFor="pf-p"><Input id="pf-p" value={p.pers} onChange={set("pers")} /></Field>
-      <div className="mb-3.5">
-        <span className="mb-1.5 block text-[13px] font-semibold text-muted">추가 항목 <span className="font-normal">· 포지션, 직업, 좋아하는 것 등 원하는 항목을 더해요</span></span>
-        <div className="flex flex-col gap-2">
-          {extras.map((e, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
-              <Input placeholder="항목" value={e.k} onChange={(ev) => setExtra(i, "k", ev.target.value)} aria-label={`추가 항목 ${i + 1} 이름`} />
-              <Input placeholder="내용" value={e.v} onChange={(ev) => setExtra(i, "v", ev.target.value)} aria-label={`추가 항목 ${i + 1} 내용`} />
-              <button type="button" aria-label="항목 빼기" onClick={() => setP((x) => ({ ...x, extra: (x.extra ?? []).filter((_, j) => j !== i) }))} className="grid size-11 place-items-center rounded-full text-muted hover:bg-sunk hover:text-crit">×</button>
-            </div>
-          ))}
-          <Button type="button" variant="ghost" size="sm" className="self-start" disabled={extras.length >= 12} onClick={() => setP((x) => ({ ...x, extra: [...(x.extra ?? []), { k: "", v: "" }] }))}>+ 항목 추가</Button>
-        </div>
-      </div>
-      <Field
-        label={<span className="flex items-center justify-between">소개 <button type="button" className="text-xs font-normal text-gold underline-offset-2 hover:underline" onClick={() => setPreview((v) => !v)}>{preview ? "편집" : "미리보기"}</button></span>}
-        htmlFor="pf-t"
-        hint="마크다운을 쓸 수 있어요: **굵게**, *기울임*, # 제목, > 인용, - 목록, --- 구분선"
-      >
-        {preview ? <div className="field-input min-h-[160px] text-[15px]"><Markdown text={p.text} /></div> : <Textarea id="pf-t" className="min-h-[160px]" value={p.text} onChange={set("text")} />}
-      </Field>
-      <Field label="세부 정보" htmlFor="pf-d" hint="관계, 설정, 비밀 등 긴 내용. 마크다운 가능. 비워 두면 표시되지 않아요.">
-        {preview ? <div className="field-input min-h-[160px] text-[15px]"><Markdown text={p.detail ?? ""} /></div> : <Textarea id="pf-d" className="min-h-[200px]" value={p.detail ?? ""} onChange={set("detail")} />}
-      </Field>
-      <SheetActions>
-        <Button variant="ghost" onClick={closeSheet}>취소</Button>
-        <Button disabled={busy} onClick={async () => { setBusy(true); try { await saveProfile(stage, { ...p, extra: (p.extra ?? []).filter((e) => e.k.trim() || e.v.trim()) }); closeSheet(); toast("프로필을 저장했어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "저장 중…" : "저장"}</Button>
-      </SheetActions>
-    </>
+    <section className="card mt-4 border-dashed p-6 lg:p-8">
+      <span className="eyebrow">비밀 설정 · 운영자만 볼 수 있어요</span>
+      <div className="mt-3 text-[15px]"><Markdown text={text} /></div>
+    </section>
   );
 }

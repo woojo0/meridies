@@ -18,6 +18,8 @@ export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, n
 export interface StudyResult { subject: SubjectId; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
 export interface JobResult { jobId: string; ok: boolean; amt: number; rate: number; grade: number }
 export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null }
+export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null };
+export interface NewCharacter { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Partial<Record<"0" | "1" | "2", StageProfileIn>>; secret?: string }
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
 
 interface State {
@@ -30,6 +32,7 @@ interface State {
   typing: Record<string, Record<string, number>>;
   myTx: Tx[];
   liveError: string | null;
+  secrets: Record<string, string>;
 
   now: () => number;
   me: () => Character | null;
@@ -73,8 +76,10 @@ interface State {
   jobFinish: () => Promise<JobResult | null>;
   transfer: (to: string, amt: number, memo: string) => Promise<string | null>;
 
-  saveProfile: (stage: Stage, p: Profile) => Promise<void>;
-  createCharacter: (c: { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[] }) => Promise<string>;
+  saveProfile: (stage: Stage, p: Profile, charId?: string) => Promise<void>;
+  loadSecret: (charId: string) => Promise<string | null>;
+  saveSecret: (charId: string, text: string) => Promise<void>;
+  createCharacter: (c: NewCharacter) => Promise<string>;
 
   letterNew: (text: string) => Promise<"sent" | "lost" | "no-stamp">;
   letterReply: (threadId: string, text: string) => Promise<"sent" | "no-pigeon">;
@@ -122,6 +127,7 @@ export const useStore = create<State>()(
         typing: {},
         myTx: [],
         liveError: null,
+        secrets: {},
 
         now: () => Date.now() + get().shift,
         me: () => get().data.chars.find((c) => c.id === get().session.charId) ?? null,
@@ -284,13 +290,24 @@ export const useStore = create<State>()(
           return err;
         },
 
-        saveProfile: async (stage, p) => { if (LIVE) return L().saveProfile(stage, p); set((s) => { const m = mine(s.data); if (m) m.profiles[stage] = p; }); },
-        createCharacter: async ({ name, dorm, gender, height, birthday, scores }) => {
-          if (LIVE) return L().createCharacter({ name, dorm, gender, height, birthday, scores });
+        saveProfile: async (stage, p, charId) => { if (LIVE) return L().saveProfile(stage, p, charId); set((s) => { const m = charId ? s.data.chars.find((c) => c.id === charId) : mine(s.data); if (m) m.profiles[stage] = p; }); },
+        loadSecret: async (charId) => { if (LIVE) return L().loadSecret(charId); return get().secrets[charId] ?? ""; },
+        saveSecret: async (charId, text) => { if (LIVE) return L().saveSecret(charId, text); set((s) => { s.secrets[charId] = text; }); },
+        createCharacter: async (nc) => {
+          if (LIVE) return L().createCharacter(nc);
+          const { name, dorm, gender, height, birthday, scores, profiles: pin = {}, secret } = nc;
           const id = uid();
+          const ages = ["11세", "15세", "성인"];
+          const profiles: Character["profiles"] = {};
+          (["0", "1", "2"] as const).forEach((st, i) => {
+            const p = pin[st] ?? {};
+            if (st !== "0" && !(p.pers || p.text || p.detail || p.avatar || p.body)) return;
+            profiles[i as Stage] = { gender, height, birthday, age: ages[i], pers: p.pers ?? "", text: p.text ?? "", detail: p.detail ?? "", avatar: p.avatar ?? null, body: p.body ?? null };
+          });
           set((s) => {
-            s.data.chars.push({ id, name, dorm, owner: "me", money: START_MONEY, inv: {}, profiles: { 0: { gender, age: "11세", height, birthday, pers: "", text: "" } }, scores: scoresFrom(scores), tx: [{ at: get().now(), text: "입학 지원금", amt: START_MONEY }] });
+            s.data.chars.push({ id, name, dorm, owner: "me", money: START_MONEY, inv: {}, profiles, scores: scoresFrom(scores), tx: [{ at: get().now(), text: "입학 지원금", amt: START_MONEY }] });
             s.session.charId = id;
+            if (secret?.trim()) s.secrets[id] = secret;
           });
           return id;
         },
@@ -357,7 +374,7 @@ export const useStore = create<State>()(
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       // 실제 서버 모드에서는 화면 설정만 저장하고 데이터는 Firestore에서 받아요.
-      partialize: (s) => (LIVE ? { ui: s.ui } : { data: s.data, session: s.session, shift: s.shift, ui: s.ui }),
+      partialize: (s) => (LIVE ? { ui: s.ui } : { data: s.data, session: s.session, shift: s.shift, ui: s.ui, secrets: s.secrets }),
       migrate: () => ({ data: seed(), session: emptySession(), shift: 0, ui: todayUI() }),
       onRehydrateStorage: () => () => { if (!LIVE) useStore.setState({ hydrated: true }); },
     },

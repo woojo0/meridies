@@ -48,8 +48,8 @@ export function Composer({ placeholder, onSend, offsetForTabBar, onTyping, typin
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }}
             className="min-h-11 max-h-[40vh] min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 text-[16px] leading-normal placeholder:text-muted/70 focus:outline-none"
           />
-          <button onClick={send} aria-label="보내기" className="grid size-11 shrink-0 place-items-center rounded-full bg-gold text-gold-ink transition disabled:opacity-40" disabled={!text.trim() && !img}>
-            <Send size={19} strokeWidth={1.7} />
+          <button onClick={send} aria-label="보내기" className="grid size-11 shrink-0 place-items-center rounded-full bg-gold text-[#fff8ea] transition disabled:opacity-40" disabled={!text.trim() && !img}>
+            <Send size={19} strokeWidth={1.9} className="-translate-x-px translate-y-px" />
           </button>
         </div>
       </div>
