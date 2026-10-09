@@ -47,6 +47,9 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
   const savePrivate = useStore((s) => s.savePrivate);
   const renameCharacter = useStore((s) => s.renameCharacter);
   const [name, setName] = useState(c.name);
+  const [nameSizeText, setNameSizeText] = useState(String(c.profiles[stage]?.nameSize ?? 32));
+  const nameSizeNum = Number(nameSizeText.trim());
+  const nameSizeBad = nameSizeText.trim() === "" || !Number.isFinite(nameSizeNum) || !Number.isInteger(nameSizeNum) || nameSizeNum < 12 || nameSizeNum > 36;
   const [p, setP] = useState<Profile>(() => {
     const base = c.profiles[stage] ?? { ...prof(c, stage).p, avatar: null, body: null, age: ["11세", "15세", "성인"][stage] };
     return { ...base, extra: base.extra ?? [], keywords: base.keywords ?? [] };
@@ -62,10 +65,11 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
     if ((p.quote ?? "").length > 10 || (p.catchphrase ?? "").length > 10) { toast("한마디와 캐치프레이즈는 10자 이내예요."); return; }
     const nm = name.trim();
     if (!nm || nm.length > 20) { toast("이름은 1~20자예요."); return; }
+    if (nameSizeBad) { toast("이름 글자 크기는 12~36 사이의 정수여야 해요."); return; }
     setBusy(true);
     try {
       if (nm !== c.name) await renameCharacter(c.id, nm);
-      await saveProfile(stage, { ...p, extra: extras.filter((e) => e.k.trim() || e.v.trim()) }, c.id);
+      await saveProfile(stage, { ...p, nameSize: nameSizeNum, extra: extras.filter((e) => e.k.trim() || e.v.trim()) }, c.id);
       try { await savePrivate(c.id, priv); } catch { toast("프로필은 저장했지만 비공개 항목은 저장하지 못했어요(권한 규칙 배포 필요)."); router.push(`/profile/${c.id}`); return; }
       toast("프로필을 저장했어요.");
       router.push(`/profile/${c.id}`);
@@ -105,8 +109,8 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
         <div className="card p-5 pb-1">
           <div className="grid grid-cols-[minmax(0,1fr)_200px] gap-x-3">
             <Field label="이름 (국문)" htmlFor="pf-name" hint="모든 단계에 같이 적용돼요. 1~20자"><Input id="pf-name" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} /></Field>
-            <Field label="이름 글자 크기 (PC)" htmlFor="pf-ns" hint="12~36px. 긴 이름은 작게 (한 줄에 안 들어오면 …로 잘려요)">
-              <Input id="pf-ns" type="number" inputMode="numeric" min={12} max={36} value={p.nameSize ?? 32} onChange={(e) => setP((x) => ({ ...x, nameSize: Math.min(36, Math.max(12, parseInt(e.target.value, 10) || 32)) }))} />
+            <Field label="이름 글자 크기 (PC)" htmlFor="pf-ns" hint={nameSizeBad ? <span className="text-crit">12~36 사이의 정수를 넣어 주세요.</span> : "12~36px. 긴 이름은 작게 (한 줄에 안 들어오면 …로 잘려요)"}>
+              <Input id="pf-ns" inputMode="numeric" value={nameSizeText} onChange={(e) => setNameSizeText(e.target.value)} className={nameSizeBad ? "border-crit" : ""} aria-invalid={nameSizeBad} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-x-3">
