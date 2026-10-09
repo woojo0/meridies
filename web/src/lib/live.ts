@@ -287,6 +287,16 @@ export const L = {
   savePrivate: (charId: string, p: PrivateProfile) => setDoc(doc(fbDb(), `characters/${charId}/private`, "secret"), { text: p.secret, trigger: p.trigger, growthIf: p.growthIf, updatedAt: now() }, { merge: true }),
   saveSecret: (charId: string, text: string) => setDoc(doc(fbDb(), `characters/${charId}/private`, "secret"), { text, updatedAt: now() }, { merge: true }),
   markNotif: (id: string) => updateDoc(doc(fbDb(), "notifs", id), { read: true }),
+  async markAllNotifs() {
+    const m = me(); const db = fbDb(); const b = writeBatch(db);
+    useStore.getState().data.notifs.filter((n) => n.to === m.id && !n.read).slice(0, 400).forEach((n) => b.update(doc(db, "notifs", n.id), { read: true }));
+    await b.commit();
+  },
+  async clearReadNotifs() {
+    const m = me(); const db = fbDb(); const b = writeBatch(db);
+    useStore.getState().data.notifs.filter((n) => n.to === m.id && n.read).slice(0, 400).forEach((n) => b.delete(doc(db, "notifs", n.id)));
+    await b.commit();
+  },
   markLetterRead: async (threadId: string, idx: number) => {
     const t = useStore.getState().data.threads.find((t) => t.id === threadId); const l = t?.letters[idx] as (Thread["letters"][number] & { id?: string }) | undefined;
     if (!t || !l?.id || l.read) return;

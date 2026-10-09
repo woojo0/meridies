@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { JOB_MS, STAGES, STUDY_MS, dorm as dormOf, subject } from "@/lib/constants";
 import { ago, cx, money } from "@/lib/format";
 import { useMe, useNow } from "@/lib/hooks";
-import { useOverlay } from "@/lib/overlay";
+import { toast, useOverlay } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import { PenpalTab } from "../letters/PenpalTab";
 import { openJobSheet, openStudySheet } from "../profile/growthSheets";
@@ -26,6 +26,8 @@ export function CharDrawer() {
   const notifs = useStore((s) => s.data.notifs);
   const threads = useStore((s) => s.data.threads);
   const markNotif = useStore((s) => s.markNotif);
+  const markAllNotifs = useStore((s) => s.markAllNotifs);
+  const clearReadNotifs = useStore((s) => s.clearReadNotifs);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -86,6 +88,13 @@ export function CharDrawer() {
           )}
           {drawerTab === "pen" && <PenpalTab />}
           {drawerTab === "noti" && (
+            <>
+            {myNotifs.length > 0 && (
+              <div className="mb-2 flex justify-end gap-1.5">
+                <Button size="sm" variant="ghost" disabled={!myNotifs.some((n) => !n.read)} onClick={async () => { try { await markAllNotifs(); } catch (e) { toast((e as Error).message); } }}>전체 확인</Button>
+                <Button size="sm" variant="ghost" disabled={!myNotifs.some((n) => n.read)} onClick={async () => { try { await clearReadNotifs(); toast("확인한 알림을 지웠어요."); } catch (e) { toast((e as Error).message); } }}>확인한 것 지우기</Button>
+              </div>
+            )}
             <div className="card-flat flex flex-col">
               {studyReady && me.studyJob && (
                 <button onClick={() => { closeDrawer(); openStudySheet(); }} className={rowCls}>
@@ -116,6 +125,7 @@ export function CharDrawer() {
               ))}
               {!myNotifs.length && !studyReady && !jobReady && <Empty>새 알림이 없어요.</Empty>}
             </div>
+            </>
           )}
         </div>
       </aside>

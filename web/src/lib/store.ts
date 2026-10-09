@@ -96,6 +96,8 @@ interface State {
   letterReply: (threadId: string, text: string) => Promise<"sent" | "no-pigeon">;
   markLetterRead: (threadId: string, idx: number) => Promise<void>;
   markNotif: (id: string) => Promise<void>;
+  markAllNotifs: () => Promise<void>;
+  clearReadNotifs: () => Promise<void>;
 
   setStage: (s: Stage) => Promise<void>;
   semester: () => Promise<void>;
@@ -358,6 +360,8 @@ export const useStore = create<State>()(
           return out;
         },
         markLetterRead: async (threadId, idx) => { if (LIVE) return L().markLetterRead(threadId, idx); set((s) => { const l = s.data.threads.find((t) => t.id === threadId)?.letters[idx]; if (l && l.from !== s.session.charId) l.read = true; }); },
+        markAllNotifs: async () => { if (LIVE) return L().markAllNotifs(); set((s) => { s.data.notifs.forEach((n) => { if (n.to === s.session.charId) n.read = true; }); }); },
+        clearReadNotifs: async () => { if (LIVE) return L().clearReadNotifs(); set((s) => { s.data.notifs = s.data.notifs.filter((n) => !(n.to === s.session.charId && n.read)); }); },
         markNotif: async (id) => { if (LIVE) return L().markNotif(id); set((s) => { const n = s.data.notifs.find((n) => n.id === id); if (n) n.read = true; }); },
 
         setStage: async (st) => { if (LIVE) return L().setStage(st); set((s) => { s.data.stage = st; }); },
