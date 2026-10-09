@@ -22,12 +22,12 @@ export function PostCard({ p, now }: { p: Post; now: number }) {
   const openSheet = useOverlay((s) => s.openSheet);
   const router = useRouter();
   const [menu, setMenu] = useState(false);
-  if (!c || !meId) return null;
+  if (!c) return null;
 
   const mine = p.charId === meId;
-  const myRoom = rooms.find((r) => r.source.postId === p.id && r.members.includes(meId));
+  const myRoom = meId ? rooms.find((r) => r.source.postId === p.id && r.members.includes(meId)) : undefined;
   const cnt = rooms.filter((r) => r.source.postId === p.id).length;
-  const liked = p.likes.includes(meId);
+  const liked = !!meId && p.likes.includes(meId);
   const actCls = "inline-flex h-9 min-w-9 items-center justify-center gap-1 rounded-full px-2.5 text-[13px] font-medium leading-none tnum transition-colors";
 
   return (
@@ -56,7 +56,7 @@ export function PostCard({ p, now }: { p: Post; now: number }) {
       </div>
       <div className="mt-3.5 text-[15px]"><RpText text={p.text} /></div>
       <ImageGrid srcs={p.images} className="mt-3" />
-      <div className="mt-3 flex items-center justify-end gap-1 pr-1">
+      {meId && <div className="mt-3 flex items-center justify-end gap-1 pr-1">
         {mine ? (
           <span className={cx(actCls, "text-muted")} aria-label={`이 글에서 시작된 역극 ${cnt}개`}>
             <MessageCircle size={18} strokeWidth={1.7} />{cnt > 0 && <span>{cnt}</span>}
@@ -73,7 +73,7 @@ export function PostCard({ p, now }: { p: Post; now: number }) {
         <button onClick={() => toggleLike(p.id)} aria-pressed={liked} aria-label="마음" title="마음" className={cx(actCls, liked ? "text-gold hover:bg-gold-soft" : "text-muted hover:bg-sunk hover:text-ink")}>
           <Heart size={18} strokeWidth={1.7} className={cx(liked && "fill-current")} />{p.likes.length > 0 && <span>{p.likes.length}</span>}
         </button>
-      </div>
+      </div>}
     </article>
   );
 }

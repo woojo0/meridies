@@ -130,7 +130,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const liveError = useStore((s) => s.liveError);
   const signedIn = LIVE ? !!session.uid : !!session.charId;
   const approved = !LIVE || session.status === "member" || session.admin;
-  const needsChar = LIVE && signedIn && approved && !session.charId;
+  const needsChar = LIVE && signedIn && approved && !session.charId && !session.admin;
 
   useEffect(() => {
     if (!hydrated) return;
@@ -139,7 +139,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   }, [hydrated, signedIn, needsChar, pathname, router]);
 
   if (LIVE && hydrated && signedIn && liveError) return <LiveError msg={liveError} />;
-  const waiting = !hydrated || !signedIn || (needsChar && pathname !== "/join") || (LIVE && approved && !needsChar && !me);
+  const waiting = !hydrated || !signedIn || (needsChar && pathname !== "/join") || (LIVE && approved && !needsChar && !me && !session.admin);
   if (waiting) {
     return (<><Splash /><div hidden aria-hidden="true">{children}</div></>);
   }
@@ -151,7 +151,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
 
   return (
     <div className="app-scale lg:pl-[var(--rail)]">
-      {me ? <TopBar me={me} title={pageTitle} root={root} unread={unread} /> : <div className="h-[62px]" />}
+      <TopBar me={me} title={pageTitle} root={root} unread={unread} />
       <main
         className={cx(
           "mx-auto w-full max-w-[var(--content)] px-5 pt-2 pb-[calc(110px+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-28",
@@ -162,7 +162,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
       >
         {children}
       </main>
-      {me && <TabBar hidden={immersive} />}
+      <TabBar hidden={immersive} />
       {me && (
         <button
           onClick={() => openDrawer()}

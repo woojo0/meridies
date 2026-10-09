@@ -3,7 +3,7 @@
  * 스토어(store.ts)는 모드에 따라 이 모듈 또는 데모 구현으로 위임해요.
  */
 import {
-  createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User,
+  EmailAuthProvider, createUserWithEmailAndPassword, onAuthStateChanged, reauthenticateWithCredential, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updatePassword, type User,
 } from "firebase/auth";
 import {
   addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
@@ -168,6 +168,14 @@ export const auth = {
     return cred;
   },
   signOut: () => signOut(fbAuth()),
+  /** 현재 비밀번호로 다시 확인한 뒤 새 비밀번호로 바꿔요. */
+  changePassword: async (current: string, next: string) => {
+    const u = fbAuth().currentUser;
+    if (!u?.email) throw new Error("로그인이 필요해요.");
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, current));
+    await updatePassword(u, next);
+  },
+  resetPassword: (email: string) => sendPasswordResetEmail(fbAuth(), email),
 };
 
 /* ───────── 이미지 ───────── */

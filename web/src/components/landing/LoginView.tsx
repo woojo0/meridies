@@ -104,6 +104,19 @@ function EmailAuth() {
         )}
         <Button type="submit" block disabled={busy}>{busy ? "잠시만요…" : mode === "in" ? "로그인" : "가입 신청하기"}</Button>
       </form>
+      {mode === "in" && (
+        <button
+          type="button"
+          className="mt-3 block w-full text-center text-xs text-muted underline-offset-2 hover:underline"
+          onClick={async () => {
+            if (!email.trim()) { toast("이메일을 먼저 적어 주세요."); return; }
+            try { await auth.resetPassword(email.trim()); toast("비밀번호 재설정 메일을 보냈어요. 받은 편지함을 확인해 주세요."); }
+            catch { toast("메일을 보내지 못했어요. 이메일을 확인해 주세요."); }
+          }}
+        >
+          비밀번호를 잊었어요
+        </button>
+      )}
     </div>
   );
 }

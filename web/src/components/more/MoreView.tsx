@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ChevronRight, Lock, LogOut, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
+import { BookOpen, ChevronRight, KeyRound, Lock, LogOut, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { H } from "@/lib/constants";
@@ -11,7 +11,8 @@ import { toast, useOverlay } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import { Avatar } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Chip, ChipRow, Note, RowSub, RowTitle, SectionHead, rowCls } from "../ui/primitives";
+import { Button, Chip, ChipRow, Field, Input, Note, RowSub, RowTitle, SectionHead, rowCls } from "../ui/primitives";
+import { useState } from "react";
 
 function MenuRow({ href, icon, title, sub, onClick }: { href?: string; icon: React.ReactNode; title: string; sub: string; onClick?: () => void }) {
   const inner = (
@@ -33,19 +34,29 @@ export function MoreView() {
   const admin = st.session.admin;
   const openSheet = useOverlay((s) => s.openSheet);
   const [theme, setTheme] = useTheme();
-  if (!me) return null;
   const ic = 19;
 
   return (
     <>
-      <Link href={`/profile/${me.id}`} className="card mt-2 flex items-center gap-3.5 p-4 transition-colors hover:bg-sunk/60">
-        <span className="rounded-full p-[3px] ring-1 ring-line"><Avatar c={me} stage={stage} size="lg" className="size-14" /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-display text-[18px] font-semibold">{me.name}</span>
-          <RowSub>{money(me.money)} · 내 프로필 보기</RowSub>
-        </span>
-        <ChevronRight size={18} className="text-muted" />
-      </Link>
+      {me ? (
+        <Link href={`/profile/${me.id}`} className="card mt-2 flex items-center gap-3.5 p-4 transition-colors hover:bg-sunk/60">
+          <span className="rounded-full p-[3px] ring-1 ring-line"><Avatar c={me} stage={stage} size="lg" className="size-14" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[18px] font-semibold">{me.name}</span>
+            <RowSub>{money(me.money)} · 내 프로필 보기</RowSub>
+          </span>
+          <ChevronRight size={18} className="text-muted" />
+        </Link>
+      ) : (
+        <Link href="/join" className="card mt-2 flex items-center gap-3.5 p-4 transition-colors hover:bg-sunk/60">
+          <span className="grid size-14 place-items-center rounded-full bg-gold-soft text-gold"><Plus size={22} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[18px] font-semibold">캐릭터 등록</span>
+            <RowSub>{st.session.admin ? "운영자도 캐릭터를 만들면 활동할 수 있어요" : "학부를 고르고 성적 2,000점을 나눠요"}</RowSub>
+          </span>
+          <ChevronRight size={18} className="text-muted" />
+        </Link>
+      )}
 
       <SectionHead title="커뮤니티" />
       <div className="card-flat">
@@ -67,6 +78,7 @@ export function MoreView() {
           </ChipRow>
           <p className="mt-1 text-xs text-muted">밤에 역극하는 사용자를 위해 어두운 화면을 기본 지원해요.</p>
         </div>
+        {LIVE && <MenuRow icon={<KeyRound size={ic} strokeWidth={1.6} />} title="비밀번호 변경" sub={st.session.email ?? ""} onClick={() => openSheet(<PasswordSheet />)} />}
         <MenuRow icon={<LogOut size={ic} strokeWidth={1.6} />} title="로그아웃" sub="계정에서 나가기" onClick={async () => { await st.logout(); router.replace("/"); }} />
       </div>
 
@@ -87,7 +99,7 @@ export function MoreView() {
         <div className="px-4 py-4">
           <h3 className="mb-1 text-[15px]">지금 플레이 중인 캐릭터</h3>
           <p className="mb-2.5 text-[13px] text-muted">다른 캐릭터로 바꿔서 역극에 답하거나 편지를 받아 볼 수 있어요.</p>
-          <ChipRow>{chars.map((c) => <Chip key={c.id} on={c.id === me.id} onClick={() => { st.switchChar(c.id); toast(`${c.name}(으)로 바꿨어요.`); }}>{c.name}</Chip>)}</ChipRow>
+          <ChipRow>{chars.map((c) => <Chip key={c.id} on={c.id === me?.id} onClick={() => { st.switchChar(c.id); toast(`${c.name}(으)로 바꿨어요.`); }}>{c.name}</Chip>)}</ChipRow>
         </div>
         <div className="px-4 py-4">
           <h3 className="mb-1 text-[15px]">시간 빨리 감기</h3>
@@ -101,6 +113,38 @@ export function MoreView() {
       </div>
       <Note>이 데모의 데이터는 예시이고, 이 브라우저에만 저장돼요.</Note>
       </>)}
+    </>
+  );
+}
+
+function PasswordSheet() {
+  const closeSheet = useOverlay((s) => s.closeSheet);
+  const [cur, setCur] = useState("");
+  const [nw, setNw] = useState("");
+  const [nw2, setNw2] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <SheetTitle sub="현재 비밀번호를 한 번 더 확인한 뒤 바꿔요.">비밀번호 변경</SheetTitle>
+      <Field label="현재 비밀번호" htmlFor="pw-cur"><Input id="pw-cur" type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
+      <Field label="새 비밀번호 (6자 이상)" htmlFor="pw-new"><Input id="pw-new" type="password" autoComplete="new-password" value={nw} onChange={(e) => setNw(e.target.value)} /></Field>
+      <Field label="새 비밀번호 확인" htmlFor="pw-new2"><Input id="pw-new2" type="password" autoComplete="new-password" value={nw2} onChange={(e) => setNw2(e.target.value)} /></Field>
+      <SheetActions>
+        <Button variant="ghost" onClick={closeSheet}>취소</Button>
+        <Button disabled={busy} onClick={async () => {
+          if (nw.length < 6) { toast("새 비밀번호는 6자 이상이어야 해요."); return; }
+          if (nw !== nw2) { toast("새 비밀번호가 서로 달라요."); return; }
+          setBusy(true);
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            await (require("@/lib/live") as typeof import("@/lib/live")).auth.changePassword(cur, nw);
+            closeSheet(); toast("비밀번호를 바꿨어요.");
+          } catch (e) {
+            const code = (e as { code?: string }).code ?? "";
+            toast(code === "auth/invalid-credential" || code === "auth/wrong-password" ? "현재 비밀번호가 맞지 않아요." : "변경에 실패했어요. 다시 로그인한 뒤 시도해 주세요.");
+          } finally { setBusy(false); }
+        }}>{busy ? "바꾸는 중…" : "바꾸기"}</Button>
+      </SheetActions>
     </>
   );
 }

@@ -18,7 +18,7 @@ export function Badge({ n, className }: { n: number; className?: string }) {
   );
 }
 
-export function TopBar({ me, title, root, unread }: { me: Character; title?: string; root: boolean; unread: number }) {
+export function TopBar({ me, title, root, unread }: { me: Character | null; title?: string; root: boolean; unread: number }) {
   const router = useRouter();
   const openDrawer = useOverlay((s) => s.openDrawer);
   const stage = useStore((s) => s.data.stage);
@@ -38,10 +38,12 @@ export function TopBar({ me, title, root, unread }: { me: Character; title?: str
         )}
         {root && <span className="hidden font-display text-[22px] font-semibold lg:block">{title}</span>}
         <span className="flex-1" />
-        <button onClick={() => openDrawer()} aria-label="캐릭터 메뉴 열기" className="relative grid size-11 place-items-center rounded-full lg:hidden">
-          <span className="rounded-full p-[2px] ring-1 ring-line"><Avatar c={me} stage={stage} size="sm" className="size-[32px]" /></span>
-          <Badge n={unread} />
-        </button>
+        {me && (
+          <button onClick={() => openDrawer()} aria-label="캐릭터 메뉴 열기" className="relative grid size-11 place-items-center rounded-full lg:hidden">
+            <span className="rounded-full p-[2px] ring-1 ring-line"><Avatar c={me} stage={stage} size="sm" className="size-[32px]" /></span>
+            <Badge n={unread} />
+          </button>
+        )}
       </div>
     </header>
   );

@@ -38,7 +38,7 @@ export function DormView() {
     const el = document.scrollingElement; if (el) window.scrollTo(0, el.scrollHeight);
   }, [dormMsgs, shownDorm, viewStage]);
 
-  if (!me) return null;
+  if (!me) return <Note className="mt-4">캐릭터를 등록하면 기숙사에 들어갈 수 있어요. 더보기 → 캐릭터 등록.</Note>;
   const d = dormOf((shownDorm as typeof me.dorm) || me.dorm);
   const guest = d.id !== me.dorm;
   const st = viewStage ?? stage;

@@ -5,7 +5,7 @@ import { useMe } from "@/lib/hooks";
 import { useOverlay } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import { ItemIcon } from "../ui/ItemIcon";
-import { Chip, ChipRow } from "../ui/primitives";
+import { Chip, ChipRow, Note } from "../ui/primitives";
 import { ItemSheet } from "./ItemSheet";
 
 /** 상점: 2열 그리드(≥560px 3열), 상단에 내 잔액 고정. */
@@ -16,7 +16,7 @@ export function ShopView() {
   const cat = useStore((s) => s.ui.shopCat);
   const setShopCat = useStore((s) => s.setShopCat);
   const openSheet = useOverlay((s) => s.openSheet);
-  if (!me) return null;
+  if (!me) return <Note className="mt-4">캐릭터를 등록하면 상점을 이용할 수 있어요. 더보기 → 캐릭터 등록.</Note>;
   const cats = ["전체", ...new Set(items.map((i) => i.cat))];
   const list = items.filter((i) => cat === "전체" || i.cat === cat);
   return (
