@@ -207,7 +207,7 @@ function GradesPanel({ c, opt, kwG }: { c: Character; opt: number; kwG: number }
       <div className="card mb-3 flex items-center justify-between gap-3 p-4">
         <div>
           <span className="eyebrow">Optime</span>
-          <b className="block font-display text-2xl tnum">{opt}<span className="ml-1 text-sm font-normal text-muted">개 · 총점 {Object.values(c.scores).reduce((a, b) => a + b, 0).toLocaleString()}</span></b>
+          <b className="block font-display text-lg tnum">{opt}<span className="ml-1 text-[13px] font-normal text-muted">개 · 총점 {Object.values(c.scores).reduce((a, b) => a + b, 0).toLocaleString()}</span></b>
         </div>
         <div className="text-right text-[12.5px] leading-snug text-muted">솔리스 배급<br /><b className="text-ink">하루 {RATION[kwG]}병</b> · {SOLIS_LABEL[kwG]}</div>
       </div>
@@ -232,7 +232,7 @@ function GradesPanel({ c, opt, kwG }: { c: Character; opt: number; kwG: number }
 function InvPanel({ c, mine, items, now, openSheet }: { c: Character; mine: boolean; items: { id: string; name: string; icon: string }[]; now: number; openSheet: (n: React.ReactNode) => void }) {
   return (
     <>
-      <div className="card mb-3 flex items-baseline justify-between p-4"><span className="text-sm text-muted">보유 재화</span><b className="font-display text-xl tnum">{money(c.money)}</b></div>
+      <div className="mb-3 flex items-center justify-between rounded-full border border-line bg-surface px-4 py-2 text-[13px]"><span className="text-muted">보유 재화</span><b className="tnum font-semibold">{money(c.money)}</b></div>
       {mine && <p className="mb-3 text-[12.5px] text-muted">물건을 누르면 사용하거나 선물할 수 있어요.</p>}
       <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
         {Object.entries(c.inv).filter(([, n]) => n > 0).map(([id, n]) => {
