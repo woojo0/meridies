@@ -154,7 +154,7 @@ service cloud.firestore {
 
     // 세계관·편람·규칙: 공개 문서는 비회원도 읽음. publishAt이 미래인 문서는 운영자만.
     match /docs/{docId} {
-      allow read: if isAdmin() || resource.data.public == true && (resource.data.publishAt == null || resource.data.publishAt <= request.time);
+      allow read: if isAdmin() || resource.data.public == true;
       allow write: if isAdmin();
     }
 

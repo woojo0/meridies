@@ -20,6 +20,7 @@ export interface JobResult { jobId: string; ok: boolean; amt: number; rate: numb
 export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null }
 export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null };
 export interface NewCharacter { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Partial<Record<"0" | "1" | "2", StageProfileIn>>; secret?: string }
+export interface DocEntry { text: string; updatedAt: number; summary?: string }
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
 
 interface State {
@@ -33,6 +34,8 @@ interface State {
   myTx: Tx[];
   liveError: string | null;
   secrets: Record<string, string>;
+  /** 운영자가 고친 문서(세계관·편람·규칙). 없으면 기본 원문을 써요. */
+  docTexts: Record<string, DocEntry>;
 
   now: () => number;
   me: () => Character | null;
@@ -95,6 +98,7 @@ interface State {
   addItem: (i: { name: string; price: number; cat: string; stock: number; desc: string }) => Promise<void>;
   updateItem: (id: string, patch: Partial<Item>) => Promise<void>;
   deleteCharacter: (charId: string) => Promise<void>;
+  saveDoc: (id: string, text: string, summary: string) => Promise<void>;
   adjust: (charId: string, target: SubjectId | "money", n: number, why: string) => Promise<string>;
 
   shiftTime: (h: number) => void;
@@ -132,6 +136,7 @@ export const useStore = create<State>()(
         myTx: [],
         liveError: null,
         secrets: {},
+        docTexts: {},
 
         now: () => Date.now() + get().shift,
         me: () => get().data.chars.find((c) => c.id === get().session.charId) ?? null,
@@ -356,6 +361,7 @@ export const useStore = create<State>()(
         }); },
         saveNotice: async (text) => { if (LIVE) return L().saveNotice(text); set((s) => { s.data.notice = text ? { text, at: get().now() } : null; }); },
         addItem: async (i) => { if (LIVE) return L().addItem(i); set((s) => { s.data.items.push({ id: uid(), name: i.name, price: i.price, cat: i.cat || "잡화", stock: i.stock, limit: 0, icon: "scarf", desc: i.desc, use: "" }); }); },
+        saveDoc: async (id, text, summary) => { if (LIVE) return L().saveDoc(id, text, summary); set((s) => { s.docTexts[id] = { text, updatedAt: get().now(), summary }; }); },
         deleteCharacter: async (charId) => { if (LIVE) return L().deleteCharacter(charId); set((s) => { s.data.chars = s.data.chars.filter((c) => c.id !== charId); if (s.session.charId === charId) s.session.charId = s.data.chars[0]?.id ?? null; }); },
         updateItem: async (id, patch) => { if (LIVE) return L().updateItem(id, patch); set((s) => { const i = s.data.items.find((x) => x.id === id); if (i) Object.assign(i, patch); }); },
         adjust: async (charId, target, n, why) => {
@@ -381,7 +387,7 @@ export const useStore = create<State>()(
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       // 실제 서버 모드에서는 화면 설정만 저장하고 데이터는 Firestore에서 받아요.
-      partialize: (s) => (LIVE ? { ui: s.ui } : { data: s.data, session: s.session, shift: s.shift, ui: s.ui, secrets: s.secrets }),
+      partialize: (s) => (LIVE ? { ui: s.ui } : { data: s.data, session: s.session, shift: s.shift, ui: s.ui, secrets: s.secrets, docTexts: s.docTexts }),
       migrate: () => ({ data: seed(), session: emptySession(), shift: 0, ui: todayUI() }),
       onRehydrateStorage: () => () => { if (!LIVE) useStore.setState({ hydrated: true }); },
     },

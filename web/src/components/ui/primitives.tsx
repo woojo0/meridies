@@ -104,8 +104,9 @@ export function Field({ label, htmlFor, hint, children, className }: { label: Re
     </div>
   );
 }
-export const Input = ({ className, ...p }: InputHTMLAttributes<HTMLInputElement>) => <input {...p} className={cx("field-input", className)} />;
-export const Textarea = ({ className, ...p }: TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...p} className={cx("field-input", className)} />;
+/* 입력란에는 플레이스홀더를 쓰지 않아요(라벨과 힌트로 안내). */
+export const Input = ({ className, placeholder: _ph, ...p }: InputHTMLAttributes<HTMLInputElement>) => { void _ph; return <input {...p} className={cx("field-input", className)} />; };
+export const Textarea = ({ className, placeholder: _ph, ...p }: TextareaHTMLAttributes<HTMLTextAreaElement>) => { void _ph; return <textarea {...p} className={cx("field-input", className)} />; };
 export const Select = ({ className, ...p }: SelectHTMLAttributes<HTMLSelectElement>) => <select {...p} className={cx("field-input", className)} />;
 
 /* ── Tabs: 알약 세그먼트 ── */

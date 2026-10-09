@@ -140,6 +140,16 @@ export function watchDorm(dormId: DormId, stage: number) {
   return () => { unsub(`dorm:${key}`); unsub(`typing:dorm:${key}`); };
 }
 
+/** 문서(세계관·편람·규칙) 구독. 비회원도 읽을 수 있어요. 없거나 권한 없으면 기본 원문 사용. */
+export function watchDoc(id: string) {
+  if (subs.has(`doc:${id}`)) return () => {};
+  sub(`doc:${id}`, () => onSnapshot(doc(fbDb(), "docs", id), (s) => {
+    const d = s.data() as { text?: string; updatedAt?: number; summary?: string } | undefined;
+    if (d?.text) useStore.setState((st) => ({ docTexts: { ...st.docTexts, [id]: { text: d.text!, updatedAt: d.updatedAt ?? 0, summary: d.summary } } }));
+  }, () => {}));
+  return () => unsub(`doc:${id}`);
+}
+
 /* ───────── 입력중 표시 ───────── */
 function watchTyping(key: string) {
   const db = fbDb();
@@ -280,6 +290,7 @@ export const L = {
   addItem: (i: { name: string; price: number; cat: string; stock: number; desc: string }) => setDoc(doc(fbDb(), "items", mkId()), { ...i, limit: 0, icon: "scarf", use: "" }),
   updateItem: (id: string, patch: Partial<Item>) => updateDoc(doc(fbDb(), "items", id), patch),
   deleteCharacter: (charId: string) => call("deleteCharacter", { charId }).then(() => undefined),
+  saveDoc: (id: string, text: string, summary: string) => setDoc(doc(fbDb(), "docs", id), { text, summary, public: true, updatedAt: now() }, { merge: true }),
 
   /* ───── 서버 계산 ───── */
   async createCharacter(c: NewCharacter) {

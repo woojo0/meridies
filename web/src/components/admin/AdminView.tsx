@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DORMS, STAGES, SUBJECTS, dorm as dormOf, subject } from "@/lib/constants";
 import { ago } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
@@ -17,6 +17,8 @@ import { Dropdown } from "../ui/Dropdown";
 import { ItemIcon } from "../ui/ItemIcon";
 import { money } from "@/lib/format";
 import type { Item } from "@/lib/types";
+import { HANDBOOK, RULES, WORLD } from "@/lib/docs";
+import { watchDoc } from "@/lib/live";
 
 function Card({ title, desc, children }: { title: string; desc?: string; children?: React.ReactNode }) {
   return (
@@ -106,6 +108,7 @@ export function AdminView() {
 
       <ShopCard />
       <CharactersCard />
+      <DocsCard />
       <Card title="학부" desc="학부 배정은 플레이어가 프로필을 쓸 때 직접 고르고, 기숙사 배정도 그 선택을 따라요.">
         <div className="grid grid-cols-5 gap-1.5">
           {DORMS.map((d) => (
@@ -265,6 +268,34 @@ function DeleteCharSheet({ id, name }: { id: string; name: string }) {
         <Button variant="ink" disabled={typed.trim() !== name || busy} onClick={async () => { setBusy(true); try { await deleteCharacter(id); closeSheet(); toast(`${name}을(를) 삭제했어요.`); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "삭제 중…" : "삭제하기"}</Button>
       </SheetActions>
     </>
+  );
+}
+
+/** 문서 편집: 세계관·편람·규칙. "## 제목"으로 절을 나누고, 빈 줄로 문단, "* "로 목록, "> "로 인용. */
+const DOC_IDS = [{ v: "rules" as const, l: "규칙" }, { v: "world" as const, l: "공개 세계관" }, { v: "handbook" as const, l: "루체른 생활 편람" }];
+const DOC_FALLBACK = { rules: RULES, world: WORLD, handbook: HANDBOOK };
+function DocsCard() {
+  const docTexts = useStore((s) => s.docTexts);
+  const saveDoc = useStore((s) => s.saveDoc);
+  const [id, setId] = useState<"rules" | "world" | "handbook">("rules");
+  const [text, setText] = useState<string | null>(null);
+  const [summary, setSummary] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (LIVE) return watchDoc(id); }, [id]);
+  const current = docTexts[id]?.text ?? DOC_FALLBACK[id];
+  const value = text ?? current;
+  return (
+    <Card title="문서 편집" desc="세계관·편람·규칙을 고쳐요. '## 제목'으로 절을 나누고, 빈 줄로 문단을 나눠요. 규칙은 최종 수정일과 변경 요약이 같이 표시돼요.">
+      <Field label="문서" htmlFor="doc-id"><Dropdown id="doc-id" value={id} onChange={(v) => { setId(v); setText(null); setSummary(""); }} options={DOC_IDS} /></Field>
+      <Field label="내용" htmlFor="doc-text" hint={docTexts[id]?.updatedAt ? `최종 수정 ${new Date(docTexts[id].updatedAt).toLocaleString("ko-KR")}` : "아직 고친 적 없음 (기본 원문)"}>
+        <Textarea id="doc-text" className="min-h-[320px] font-mono text-[13px] leading-relaxed" value={value} onChange={(e) => setText(e.target.value)} />
+      </Field>
+      <Field label="변경 요약 (선택)" htmlFor="doc-sum"><Input id="doc-sum" value={summary} onChange={(e) => setSummary(e.target.value)} /></Field>
+      <div className="flex gap-2">
+        <Button size="sm" disabled={busy || text === null} onClick={async () => { setBusy(true); try { await saveDoc(id, value, summary.trim()); setText(null); setSummary(""); toast("문서를 저장했어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "저장 중…" : "저장"}</Button>
+        <Button size="sm" variant="ghost" disabled={text === null} onClick={() => setText(null)}>되돌리기</Button>
+      </div>
+    </Card>
   );
 }
 
