@@ -2,7 +2,7 @@
 
 import { Send } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ago, cx } from "@/lib/format";
 import { useMe, useNow } from "@/lib/hooks";
 import { toast } from "@/lib/overlay";
@@ -67,7 +67,8 @@ function Chat({ charId, isAdmin }: { charId: string; isAdmin: boolean }) {
   const now = useNow();
   const c = useStore((s) => s.data.chars.find((x) => x.id === charId));
   const stage = useStore((s) => s.data.stage);
-  const msgs = useStore((s) => s.adminChats[charId]?.messages ?? []);
+  const thread = useStore((s) => s.adminChats[charId]);
+  const msgs = useMemo(() => thread?.messages ?? [], [thread]);
   const sendChat = useStore((s) => s.sendChat);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
