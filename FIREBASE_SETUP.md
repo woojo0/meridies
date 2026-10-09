@@ -87,16 +87,6 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 
 Functions는 코드가 채워진 뒤에 배포합니다 (`cd functions && npm install && cd .. && firebase deploy --only functions`).
 
-### 첫 운영자 지정
-
-1. Firebase 콘솔 → 프로젝트 설정 → **서비스 계정** → **새 비공개 키 생성** → 받은 JSON을 저장소 루트에 `serviceAccount.json`으로 저장 (git 제외됨)
-2. 사이트에서 운영자로 쓸 이메일로 먼저 가입
-3. 루트에서 `npm install firebase-admin` 후:
-
-```bash
-node scripts/set-admin.mjs 운영자이메일@example.com
-```
-
 ## 9. Vercel 배포
 
 1. https://vercel.com → **Add New → Project** → GitHub `woojo0/meridies` 가져오기
@@ -122,20 +112,16 @@ cd ~/meridies/functions && npm install && cd .. && firebase deploy --only functi
 
 Functions 첫 배포는 5~10분 걸리고, 중간에 API 사용 설정(Cloud Build, Artifact Registry 등)을 물으면 `Y`로 답합니다.
 
-### 첫 운영자 지정
-
-1. 사이트(로컬 `npm run dev` 또는 Vercel)에서 운영자로 쓸 이메일로 **가입 신청**을 한 번 합니다.
-2. Firebase 콘솔 → 프로젝트 설정 → **서비스 계정** → **새 비공개 키 생성** → JSON 다운로드
-3. Cloud Shell 왼쪽 위 **⋮ → 업로드**로 그 JSON을 올리고 `~/meridies/serviceAccount.json`으로 이동:
+### 첫 운영자 만들기 (Cloud Shell에서 한 줄)
 
 ```bash
-mv ~/*.json ~/meridies/serviceAccount.json && cd ~/meridies && npm install firebase-admin && node scripts/set-admin.mjs 운영자이메일@example.com
+cd ~/meridies && npm install firebase-admin && node scripts/set-admin.mjs 운영자이메일@example.com 비밀번호
 ```
 
-4. 사이트에서 로그아웃 → 다시 로그인 → **더보기 → 운영자 도구**에서 **초기 데이터 심기**를 한 번 누릅니다 (상점·아르바이트·기본 설정).
-5. 같은 화면 **가입 승인**에서 들어오는 신청을 승인합니다. 승인된 사람은 캐릭터 등록 화면으로 자동 이동합니다.
-
-끝난 뒤에는 `serviceAccount.json`을 지워도 됩니다 (`rm ~/meridies/serviceAccount.json`).
+- 이메일과 비밀번호는 원하는 대로 정하면 됩니다. 계정이 없으면 새로 만들고, 있으면 그 계정에 권한만 붙입니다.
+- "권한이 없다"는 오류가 나면 먼저 `gcloud auth application-default login`을 실행해 안내대로 로그인한 뒤 다시 시도합니다.
+- 끝나면 사이트에서 그 이메일·비밀번호로 로그인 → **더보기 → 운영자 도구** → **초기 데이터 심기**를 한 번 누릅니다 (상점·아르바이트·기본 설정).
+- 이후 가입 신청은 같은 화면의 **가입 승인**에서 처리합니다.
 
 ## 11. 어떻게 돌아가나
 
