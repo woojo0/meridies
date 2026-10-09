@@ -30,6 +30,7 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
   const shiftTime = useStore((s) => s.shiftTime);
   const { openSheet, closeSheet } = useOverlay();
   const [jokbo, setJokbo] = useState(initialJokbo);
+  const [busy, setBusy] = useState<string | null>(null);
   if (!me) return null;
   const left = studyLeft(me, now);
 
@@ -87,11 +88,11 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
           return (
             <button
               key={s.id}
-              disabled={disabled}
-              onClick={async () => { let err: string | null; try { err = await studyStart(s.id, jokbo); } catch (e) { err = (e as Error).message; } if (err) { toast(err); return; } closeSheet(); toast(`${s.name} 공부를 시작했어요. 1시간 뒤에 끝나요.`); }}
+              disabled={disabled || busy !== null}
+              onClick={async () => { setBusy(s.id); let err: string | null; try { err = await studyStart(s.id, jokbo); } catch (e) { err = (e as Error).message; } finally { setBusy(null); } if (err) { toast(err); return; } closeSheet(); toast(`${s.name} 공부를 시작했어요. 1시간 뒤에 끝나요.`); }}
               className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 rounded-2xl border border-line bg-bg px-4 py-3.5 text-left transition-colors enabled:hover:border-gold/60 disabled:opacity-40"
             >
-              <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{s.name}</span>
+              <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{s.name}{busy === s.id && <span className="ml-2 text-xs font-normal text-gold">시작하는 중…</span>}</span>
               <span className={`lat text-lg ${gradeTone[g]}`}>{GRADES[g].l}</span>
               <span className="col-span-2 text-[12.5px] text-muted tnum">
                 {GRADES[g].k} · {v}점{g < 4 ? ` · 다음 등급까지 ${100 - (v % 100)}` : ""} · 1회 0~{mx}점{s.hard ? <> · <b className="text-crit">{s.hard}</b></> : ""}
@@ -114,6 +115,7 @@ export function JobSheet() {
   const jobFinish = useStore((s) => s.jobFinish);
   const shiftTime = useStore((s) => s.shiftTime);
   const { openSheet, closeSheet } = useOverlay();
+  const [busy, setBusy] = useState<string | null>(null);
   if (!me) return null;
 
   if (me.job) {
@@ -154,11 +156,11 @@ export function JobSheet() {
           return (
             <button
               key={j.id}
-              disabled={left <= 0}
-              onClick={async () => { let err: string | null; try { err = await jobStart(j.id); } catch (e) { err = (e as Error).message; } if (err) { toast(err); return; } closeSheet(); toast("아르바이트를 시작했어요. 2시간 뒤에 완료할 수 있어요."); }}
+              disabled={left <= 0 || busy !== null}
+              onClick={async () => { setBusy(j.id); let err: string | null; try { err = await jobStart(j.id); } catch (e) { err = (e as Error).message; } finally { setBusy(null); } if (err) { toast(err); return; } closeSheet(); toast("아르바이트를 시작했어요. 2시간 뒤에 완료할 수 있어요."); }}
               className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 rounded-2xl border border-line bg-bg px-4 py-3.5 text-left transition-colors enabled:hover:border-gold/60 disabled:opacity-40"
             >
-              <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{j.name}</span>
+              <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{j.name}{busy === j.id && <span className="ml-2 text-xs font-normal text-gold">시작하는 중…</span>}</span>
               <span className="font-display text-lg tnum">{j.rates[g]}%</span>
               <span className="col-span-2 text-[12.5px] text-muted">{s.name} <span className={gradeTone[g]}>{GRADES[g].k}</span> · 성공 {j.win[0]}~{j.win[1]}그로셴 · 실패 {j.lose[0]}~{j.lose[1]}그로셴</span>
               <span className="col-span-2 text-[12.5px] text-muted">{j.desc}</span>

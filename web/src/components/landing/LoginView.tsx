@@ -44,7 +44,6 @@ export function LoginView() {
       <div className="mt-12">
         <span className="eyebrow">루체른 황립 아카데미</span>
         <h1 className="mt-1.5 text-[30px]">등불 마차에 오르기</h1>
-        <p className="mt-2.5 text-sm leading-relaxed text-muted">로그인은 계정으로 하되, 모든 활동의 주체는 캐릭터예요. 계정당 캐릭터는 1명입니다.</p>
       </div>
 
       {LIVE ? <EmailAuth /> : <DemoAuth next={next} />}

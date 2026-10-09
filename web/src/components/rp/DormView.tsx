@@ -77,7 +77,7 @@ export function DormView() {
           {STAGES.slice(0, stage + 1).map((x, i) => <Chip key={x} on={st === i} onClick={() => setViewStage(i)}>{x}{i === stage ? " · 진행 중" : " · 기록"}</Chip>)}
         </ChipRow>
       )}
-      <SectionHead title={`${STAGES[st]} 기숙사 역극`} aside={`${msgs.length}개 · ${guest ? "만능열쇠로 몰래 들어왔어요" : "학부원만 쓸 수 있어요"}`} className="mt-7" />
+      <SectionHead title="기숙사 역극" aside={`${STAGES[st]} · ${msgs.length}개 · ${guest ? "만능열쇠로 몰래 들어왔어요" : "학부원만 쓸 수 있어요"}`} className="mt-7" />
       <div className="card flex flex-col gap-6 px-5 py-5">
         {msgs.map((m) => <Message key={m.id} m={m} now={now} tint="dorm" />)}
         {!msgs.length && <Empty>첫 문장을 써 주세요.</Empty>}

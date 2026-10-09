@@ -15,7 +15,10 @@ import {
 initializeApp();
 const db = getFirestore();
 const REGION = "asia-northeast3";
-const fn = <T = unknown>(handler: (req: CallableRequest<T>) => Promise<unknown>) => onCall<T>({ region: REGION }, handler);
+type Handler<T = unknown> = (req: CallableRequest<T>) => Promise<unknown>;
+const handler = <T = unknown>(h: Handler<T>) => h;
+const fn = <T = unknown>(h: Handler<T>) => onCall<T>({ region: REGION }, h);
+const HANDLERS: Record<string, Handler<never>> = {};
 
 /* ───────── 헬퍼 ───────── */
 const rnd = (a: number, b: number) => a + Math.floor(Math.random() * (b - a + 1));
@@ -72,7 +75,7 @@ async function itemById(id: string) {
 }
 
 /* ───────── 가입·운영자 ───────── */
-export const setAdmin = fn<{ uid: string; admin: boolean }>(async (req) => {
+const h_setAdmin = handler<{ uid: string; admin: boolean }>(async (req) => {
   requireAdmin(req);
   const { uid, admin } = req.data;
   if (!uid) throw new HttpsError("invalid-argument", "uid가 필요해요.");
@@ -80,7 +83,7 @@ export const setAdmin = fn<{ uid: string; admin: boolean }>(async (req) => {
   return { ok: true };
 });
 
-export const approveUser = fn<{ uid: string; status: "member" | "pending" | "suspended" }>(async (req) => {
+const h_approveUser = handler<{ uid: string; status: "member" | "pending" | "suspended" }>(async (req) => {
   requireAdmin(req);
   const { uid, status } = req.data;
   await db.doc(`users/${uid}`).set({ status, reviewedAt: Date.now() }, { merge: true });
@@ -88,7 +91,7 @@ export const approveUser = fn<{ uid: string; status: "member" | "pending" | "sus
 });
 
 /** 운영자가 한 번 눌러 상점 아이템·아르바이트·기본 설정을 심어요. 이미 있으면 건너뜀. */
-export const seedDefaults = fn(async (req) => {
+const h_seedDefaults = handler(async (req) => {
   requireAdmin(req);
   const batch = db.batch();
   for (const i of ITEMS) batch.set(db.doc(`items/${i.id}`), i, { merge: true });
@@ -104,7 +107,7 @@ export const seedDefaults = fn(async (req) => {
 type StageProfileIn = { pers?: string; text?: string; detail?: string; age?: string; avatar?: string | null; body?: string | null };
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 const url = (v: unknown) => (typeof v === "string" && /^https:\/\/(firebasestorage\.googleapis\.com|storage\.googleapis\.com)\//.test(v) ? v : null);
-export const createCharacter = fn<{ name: string; dorm: string; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Record<string, StageProfileIn>; secret?: string }>(async (req) => {
+const h_createCharacter = handler<{ name: string; dorm: string; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Record<string, StageProfileIn>; secret?: string }>(async (req) => {
   if (!req.auth) throw new HttpsError("unauthenticated", "로그인이 필요해요.");
   const uid = req.auth.uid;
   const { name, dorm, gender, height, birthday, scores, profiles: pin = {}, secret } = req.data;
@@ -151,7 +154,7 @@ export const createCharacter = fn<{ name: string; dorm: string; gender: string; 
 });
 
 /* ───────── 솔리스 배급 ───────── */
-export const ration = fn(async (req) =>
+const h_ration = handler(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     const day = kstDay();
@@ -164,7 +167,7 @@ export const ration = fn(async (req) =>
 );
 
 /* ───────── 공부 ───────── */
-export const studyStart = fn<{ subject: SubjectId; useJokbo: boolean }>(async (req) =>
+const h_studyStart = handler<{ subject: SubjectId; useJokbo: boolean }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     const sub = SUBJECTS.find((s) => s.id === req.data.subject);
@@ -185,7 +188,7 @@ export const studyStart = fn<{ subject: SubjectId; useJokbo: boolean }>(async (r
   }),
 );
 
-export const studyFinish = fn(async (req) =>
+const h_studyFinish = handler(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     const sj = c.studyJob;
@@ -210,7 +213,7 @@ function jobLeft(c: Char) {
   const jd = c.jobDay?.day === kstDay() ? c.jobDay : { n: 0, bonus: 0 };
   return JOB_PER_DAY + jd.bonus - jd.n;
 }
-export const jobStart = fn<{ jobId: string }>(async (req) =>
+const h_jobStart = handler<{ jobId: string }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     const j = (await tx.get(db.doc(`jobs/${req.data.jobId}`))).data();
@@ -223,7 +226,7 @@ export const jobStart = fn<{ jobId: string }>(async (req) =>
     return { ok: true };
   }),
 );
-export const jobFinish = fn(async (req) =>
+const h_jobFinish = handler(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     if (!c.job) throw bad("아르바이트 중이 아니에요.");
@@ -240,7 +243,7 @@ export const jobFinish = fn(async (req) =>
 );
 
 /* ───────── 송금 ───────── */
-export const transfer = fn<{ to: string; amt: number; memo?: string }>(async (req) =>
+const h_transfer = handler<{ to: string; amt: number; memo?: string }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     const amt = Math.floor(Number(req.data.amt));
@@ -262,7 +265,7 @@ export const transfer = fn<{ to: string; amt: number; memo?: string }>(async (re
 );
 
 /* ───────── 상점·인벤토리 ───────── */
-export const buyItem = fn<{ itemId: string }>(async (req) =>
+const h_buyItem = handler<{ itemId: string }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     const iref = db.doc(`items/${req.data.itemId}`);
@@ -291,7 +294,7 @@ export const buyItem = fn<{ itemId: string }>(async (req) =>
   }),
 );
 
-export const giftItem = fn<{ itemId: string; to: string; memo?: string }>(async (req) =>
+const h_giftItem = handler<{ itemId: string; to: string; memo?: string }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     if (!(c.inv[req.data.itemId] > 0)) throw bad("가지고 있지 않은 물건이에요.");
@@ -307,7 +310,7 @@ export const giftItem = fn<{ itemId: string; to: string; memo?: string }>(async 
   }),
 );
 
-export const useItem = fn<{ itemId: string; dorm?: string }>(async (req) =>
+const h_useItem = handler<{ itemId: string; dorm?: string }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
     const id = req.data.itemId;
@@ -336,7 +339,7 @@ export const useItem = fn<{ itemId: string; dorm?: string }>(async (req) =>
 );
 
 /* ───────── 익명 펜팔 ───────── */
-export const letterSend = fn<{ text: string }>(async (req) => {
+const h_letterSend = handler<{ text: string }>(async (req) => {
   const text = (req.data.text ?? "").trim().slice(0, 3000);
   if (!text) throw new HttpsError("invalid-argument", "편지를 써 주세요.");
   // 무작위 수신자는 트랜잭션 밖에서 고르고, 안에서 검증
@@ -361,7 +364,7 @@ export const letterSend = fn<{ text: string }>(async (req) => {
   });
 });
 
-export const letterReply = fn<{ threadId: string; text: string }>(async (req) => {
+const h_letterReply = handler<{ threadId: string; text: string }>(async (req) => {
   const text = (req.data.text ?? "").trim().slice(0, 3000);
   if (!text) throw new HttpsError("invalid-argument", "편지를 써 주세요.");
   return db.runTransaction(async (tx) => {
@@ -379,7 +382,7 @@ export const letterReply = fn<{ threadId: string; text: string }>(async (req) =>
 });
 
 /* ───────── 운영자 ───────── */
-export const adminAdjust = fn<{ charId: string; target: SubjectId | "money"; n: number; why?: string }>(async (req) => {
+const h_adminAdjust = handler<{ charId: string; target: SubjectId | "money"; n: number; why?: string }>(async (req) => {
   requireAdmin(req);
   const n = Math.trunc(Number(req.data.n));
   if (!n) throw new HttpsError("invalid-argument", "증감 값을 넣어 주세요.");
@@ -405,7 +408,7 @@ export const adminAdjust = fn<{ charId: string; target: SubjectId | "money"; n: 
   });
 });
 
-export const setStage = fn<{ stage: 0 | 1 | 2 }>(async (req) => {
+const h_setStage = handler<{ stage: 0 | 1 | 2 }>(async (req) => {
   requireAdmin(req);
   const stage = req.data.stage;
   if (![0, 1, 2].includes(stage)) throw new HttpsError("invalid-argument", "단계가 올바르지 않아요.");
@@ -431,7 +434,7 @@ export const setStage = fn<{ stage: 0 | 1 | 2 }>(async (req) => {
   return { ok: true };
 });
 
-export const closeSemester = fn<{ post?: boolean }>(async (req) => {
+const h_closeSemester = handler<{ post?: boolean }>(async (req) => {
   requireAdmin(req);
   const chars = await db.collection("characters").get();
   const cnt = chars.docs.map((d) => { const c = d.data() as Char; return { id: d.id, name: c.name, dorm: c.dorm, n: SUBJECTS.filter((s) => gIdx(c.scores[s.id]) === 4).length }; });
@@ -446,4 +449,52 @@ export const closeSemester = fn<{ post?: boolean }>(async (req) => {
   }
   await db.doc("settings/global").set(patch, { merge: true });
   return results;
+});
+
+/* ───────── 내보내기: 개별 함수 + 단일 진입점 api ───────── */
+HANDLERS["setAdmin"] = h_setAdmin as Handler<never>;
+export const setAdmin = fn(h_setAdmin);
+HANDLERS["approveUser"] = h_approveUser as Handler<never>;
+export const approveUser = fn(h_approveUser);
+HANDLERS["seedDefaults"] = h_seedDefaults as Handler<never>;
+export const seedDefaults = fn(h_seedDefaults);
+HANDLERS["createCharacter"] = h_createCharacter as Handler<never>;
+export const createCharacter = fn(h_createCharacter);
+HANDLERS["ration"] = h_ration as Handler<never>;
+export const ration = fn(h_ration);
+HANDLERS["studyStart"] = h_studyStart as Handler<never>;
+export const studyStart = fn(h_studyStart);
+HANDLERS["studyFinish"] = h_studyFinish as Handler<never>;
+export const studyFinish = fn(h_studyFinish);
+HANDLERS["jobStart"] = h_jobStart as Handler<never>;
+export const jobStart = fn(h_jobStart);
+HANDLERS["jobFinish"] = h_jobFinish as Handler<never>;
+export const jobFinish = fn(h_jobFinish);
+HANDLERS["transfer"] = h_transfer as Handler<never>;
+export const transfer = fn(h_transfer);
+HANDLERS["buyItem"] = h_buyItem as Handler<never>;
+export const buyItem = fn(h_buyItem);
+HANDLERS["giftItem"] = h_giftItem as Handler<never>;
+export const giftItem = fn(h_giftItem);
+HANDLERS["useItem"] = h_useItem as Handler<never>;
+export const useItem = fn(h_useItem);
+HANDLERS["letterSend"] = h_letterSend as Handler<never>;
+export const letterSend = fn(h_letterSend);
+HANDLERS["letterReply"] = h_letterReply as Handler<never>;
+export const letterReply = fn(h_letterReply);
+HANDLERS["adminAdjust"] = h_adminAdjust as Handler<never>;
+export const adminAdjust = fn(h_adminAdjust);
+HANDLERS["setStage"] = h_setStage as Handler<never>;
+export const setStage = fn(h_setStage);
+HANDLERS["closeSemester"] = h_closeSemester as Handler<never>;
+export const closeSemester = fn(h_closeSemester);
+
+/**
+ * 단일 진입점. 모든 요청이 같은 인스턴스를 쓰므로 콜드 스타트가 줄어요.
+ * { action: "ration", data: {...} }
+ */
+export const api = onCall<{ action: string; data?: unknown }>({ region: REGION, memory: "256MiB", concurrency: 20 }, async (req) => {
+  const h = HANDLERS[req.data?.action ?? ""];
+  if (!h) throw new HttpsError("not-found", "알 수 없는 요청이에요.");
+  return (h as Handler<unknown>)({ ...req, data: req.data.data } as CallableRequest<unknown>);
 });
