@@ -37,18 +37,20 @@ export function InboxView() {
   return (
     <div className={cx("mt-2", admin && "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-5")}>
       {admin && (
-        <aside className="card-flat mb-3 max-h-[70vh] overflow-y-auto lg:mb-0">
+        <aside className="card-flat mb-3 flex max-h-[70vh] flex-col self-start lg:mb-0 lg:h-[70vh] lg:min-h-[480px]">
           <div className="border-b border-line px-4 py-3 text-[13px] font-semibold text-muted">대화 {list.length}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
           {list.map(({ t, c }) => (
             <button key={t.charId} onClick={() => router.replace(`/inbox?c=${t.charId}`)} className={cx("flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left last:border-b-0 hover:bg-sunk/60", selected === t.charId && "bg-sunk/70")}>
               <Avatar c={c!} stage={0} size="sm" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold">{c!.name}</span>{t.unreadAdmin > 0 && <span className="rounded-full bg-crit px-1.5 text-[10.5px] font-bold leading-4 text-white">{t.unreadAdmin}</span>}</span>
-                <span className="block truncate text-xs text-muted">{t.lastText || "…"}</span>
+                <span className="block truncate text-xs text-muted">{t.lastText || "대화 시작 전"}</span>
               </span>
             </button>
           ))}
           {!list.length && <Empty>아직 문의가 없어요.</Empty>}
+          </div>
           <div className="border-t border-line px-4 py-3">
             <span className="mb-1.5 block text-[12px] text-muted">새 대화 시작 · 캐릭터 이름 검색</span>
             <input
