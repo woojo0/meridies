@@ -23,7 +23,7 @@ export function CharactersView() {
           <Chip key={d.id} on={dorm === d.id} onClick={() => setDorm(d.id)}><Crest id={d.id} size={14} />{d.name} · {chars.filter((c) => c.dorm === d.id).length}</Chip>
         ))}
       </ChipRow>
-      <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
+      <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 lg:gap-4">
         {list.map((c) => {
           const p = prof(c, stage).p;
           const bits = [p.gender, p.height, p.birthday].filter(Boolean);
@@ -40,12 +40,12 @@ export function CharactersView() {
                   </svg>
                 )}
               </div>
-              <div className="px-3.5 pt-3 pb-3.5">
+              <div className="px-3 pt-2.5 pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-display text-[16px] font-semibold">{c.name}</span>
-                  <DormDot id={c.dorm} className="size-2.5" />
+                  <span className="truncate font-display text-[14.5px] font-semibold">{c.name}</span>
+                  <DormDot id={c.dorm} className="size-2" />
                 </div>
-                <div className="mt-1 truncate text-[12px] text-muted">{bits.length ? bits.join(" · ") : "프로필 준비 중"}</div>
+                <div className="mt-0.5 truncate text-[11.5px] text-muted">{bits.length ? bits.join(" · ") : "프로필 준비 중"}</div>
               </div>
             </Link>
           );
