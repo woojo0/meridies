@@ -6,6 +6,7 @@ import { DORMS, GRADES, KW_MAX_ALLOC, SUBJECTS, TOTAL_ALLOC } from "@/lib/consta
 import { cx, gIdx } from "@/lib/format";
 import { toast } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
+import { LIVE } from "@/lib/firebase";
 import type { DormId } from "@/lib/types";
 import { Crest } from "../ui/identity";
 import { Button, Field, Input, SectionHead } from "../ui/primitives";
@@ -15,6 +16,8 @@ const gradeText = ["text-crit", "text-warn", "text-muted", "text-good", "text-go
 /** 캐릭터 등록: 이름·학부(직접 선택)·성적 2,000점 분배. 광휘 실습만 최대 199점. */
 export function CreateCharacter() {
   const createCharacter = useStore((s) => s.createCharacter);
+  const logout = useStore((s) => s.logout);
+  const email = useStore((s) => s.session.email);
   const router = useRouter();
   const [name, setName] = useState("");
   const [gender, setGender] = useState("");
@@ -47,6 +50,7 @@ export function CreateCharacter() {
         <span className="eyebrow">제국력 828년 · 입학 명부</span>
         <h1 className="mt-1 text-[26px]">캐릭터 등록</h1>
         <p className="mt-2 text-sm text-muted">계정당 캐릭터는 1명이에요. 학부는 직접 고르고, 1학년 필수 9과목에 2,000점을 나눠요.</p>
+        {LIVE && <button type="button" className="mt-3 text-xs text-muted underline-offset-2 hover:underline" onClick={async () => { await logout(); router.replace("/login"); }}>{email ? `${email} · ` : ""}다른 계정으로 로그인</button>}
       </div>
 
       <SectionHead title="기본" className="mt-6" />

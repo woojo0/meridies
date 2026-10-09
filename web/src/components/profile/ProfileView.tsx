@@ -71,7 +71,14 @@ export function ProfileView({ c }: { c: Character }) {
   const kvRows: [string, React.ReactNode][] = [
     ["성별", p.gender || "-"], ["생일", p.birthday || "-"], ["나이", p.age || "-"], ["키", p.height || "-"],
     ["학년", STAGE_GRADE[st]], ["학부", <span key="d" className="inline-flex items-center gap-1.5"><Crest id={c.dorm} size={14} />{d.name}</span>], ["성격", p.pers || "-"],
+    ...((p.extra ?? []).filter((x) => x.k.trim()).map((x) => [x.k, x.v || "-"] as [string, React.ReactNode])),
   ];
+  const detailBlock = p.detail?.trim() ? (
+    <section className="card mt-4 p-6 lg:p-8">
+      <span className="eyebrow">세부 정보</span>
+      <div className="mt-3 text-[15px]"><Markdown text={p.detail} /></div>
+    </section>
+  ) : null;
   const editBtn = mine && <Button variant="ghost" size="sm" onClick={() => openSheet(<EditProfileSheet stage={st as Stage} />)}><Pencil size={14} strokeWidth={1.8} />{STAGES[st]} 프로필 {c.profiles[st as Stage] ? "수정" : "작성"}</Button>;
 
   /* ───────── 데스크톱: 왼쪽 전신, 오른쪽 두상+프로필 카드, 아래 기타 정보 ───────── */
@@ -113,6 +120,7 @@ export function ProfileView({ c }: { c: Character }) {
             </div>
             {editBtn && <div className="relative mt-6 flex justify-end">{editBtn}</div>}
           </section>
+          {detailBlock}
 
           <Tabs<Tab> className="mt-6" value={tab === "profile" || tab === "body" ? "grades" : tab} onChange={setTab} tabs={[{ k: "grades", l: "성적" }, { k: "inv", l: "인벤토리" }, { k: "rp", l: "역극" }]} />
           {(tab === "grades" || tab === "profile" || tab === "body") && <GradesPanel c={c} opt={opt} kwG={kwG} />}
@@ -160,6 +168,7 @@ export function ProfileView({ c }: { c: Character }) {
             <div className="border-t border-line pt-4 text-[15px]">{p.text ? <Markdown text={p.text} /> : <span className="text-muted">아직 소개가 없어요.</span>}</div>
             {editBtn && <div className="mt-5">{editBtn}</div>}
           </div>
+          {detailBlock}
           <SectionHead size="sm" title="역극 리스트" aside={`${roomsN}개`} />
           <div className="card-flat"><RoomList charId={c.id} /></div>
         </>
@@ -252,7 +261,9 @@ function EditProfileSheet({ stage }: { stage: Stage }) {
   const saveProfile = useStore((s) => s.saveProfile);
   const closeSheet = useOverlay((s) => s.closeSheet);
   const base: Profile = me ? (me.profiles[stage] ?? { ...prof(me, stage).p }) : { gender: "", age: "", height: "", pers: "", text: "" };
-  const [p, setP] = useState<Profile>(base);
+  const [p, setP] = useState<Profile>({ ...base, extra: base.extra ?? [] });
+  const extras = p.extra ?? [];
+  const setExtra = (i: number, k: "k" | "v", val: string) => setP((x) => ({ ...x, extra: (x.extra ?? []).map((e, j) => (j === i ? { ...e, [k]: val } : e)) }));
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(false);
   if (!me) return null;
@@ -281,6 +292,19 @@ function EditProfileSheet({ stage }: { stage: Stage }) {
         <Field label="키" htmlFor="pf-h"><Input id="pf-h" value={p.height} onChange={set("height")} /></Field>
       </div>
       <Field label="성격" htmlFor="pf-p"><Input id="pf-p" value={p.pers} onChange={set("pers")} /></Field>
+      <div className="mb-3.5">
+        <span className="mb-1.5 block text-[13px] font-semibold text-muted">추가 항목 <span className="font-normal">· 포지션, 직업, 좋아하는 것 등 원하는 항목을 더해요</span></span>
+        <div className="flex flex-col gap-2">
+          {extras.map((e, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
+              <Input placeholder="항목" value={e.k} onChange={(ev) => setExtra(i, "k", ev.target.value)} aria-label={`추가 항목 ${i + 1} 이름`} />
+              <Input placeholder="내용" value={e.v} onChange={(ev) => setExtra(i, "v", ev.target.value)} aria-label={`추가 항목 ${i + 1} 내용`} />
+              <button type="button" aria-label="항목 빼기" onClick={() => setP((x) => ({ ...x, extra: (x.extra ?? []).filter((_, j) => j !== i) }))} className="grid size-11 place-items-center rounded-full text-muted hover:bg-sunk hover:text-crit">×</button>
+            </div>
+          ))}
+          <Button type="button" variant="ghost" size="sm" className="self-start" disabled={extras.length >= 12} onClick={() => setP((x) => ({ ...x, extra: [...(x.extra ?? []), { k: "", v: "" }] }))}>+ 항목 추가</Button>
+        </div>
+      </div>
       <Field
         label={<span className="flex items-center justify-between">소개 <button type="button" className="text-xs font-normal text-gold underline-offset-2 hover:underline" onClick={() => setPreview((v) => !v)}>{preview ? "편집" : "미리보기"}</button></span>}
         htmlFor="pf-t"
@@ -288,9 +312,12 @@ function EditProfileSheet({ stage }: { stage: Stage }) {
       >
         {preview ? <div className="field-input min-h-[160px] text-[15px]"><Markdown text={p.text} /></div> : <Textarea id="pf-t" className="min-h-[160px]" value={p.text} onChange={set("text")} />}
       </Field>
+      <Field label="세부 정보" htmlFor="pf-d" hint="관계, 설정, 비밀 등 긴 내용. 마크다운 가능. 비워 두면 표시되지 않아요.">
+        {preview ? <div className="field-input min-h-[160px] text-[15px]"><Markdown text={p.detail ?? ""} /></div> : <Textarea id="pf-d" className="min-h-[200px]" value={p.detail ?? ""} onChange={set("detail")} />}
+      </Field>
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>
-        <Button disabled={busy} onClick={async () => { setBusy(true); try { await saveProfile(stage, p); closeSheet(); toast("프로필을 저장했어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "저장 중…" : "저장"}</Button>
+        <Button disabled={busy} onClick={async () => { setBusy(true); try { await saveProfile(stage, { ...p, extra: (p.extra ?? []).filter((e) => e.k.trim() || e.v.trim()) }); closeSheet(); toast("프로필을 저장했어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "저장 중…" : "저장"}</Button>
       </SheetActions>
     </>
   );

@@ -245,7 +245,10 @@ p { margin: 0; }
 }
 .field-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--glow); }
 .field-input::placeholder { color: color-mix(in srgb, var(--muted) 65%, transparent); }
-textarea.field-input { resize: vertical; min-height: 110px; line-height: 1.6; }
+textarea.field-input { resize: none; min-height: 110px; line-height: 1.6; }
+textarea { resize: none; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* 애니메이션 */
 @keyframes slidein { from { transform: translateX(28px); opacity: .4; } }

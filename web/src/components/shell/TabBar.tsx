@@ -1,6 +1,7 @@
 "use client";
 
-import { Calendar, Home, MoreHorizontal, Rows3, ShoppingBag, Users } from "lucide-react";
+import { Calendar, Home, LogOut, MoreHorizontal, Rows3, ShoppingBag, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cx, money } from "@/lib/format";
@@ -28,8 +29,11 @@ export function isTabActive(pathname: string, href: string) {
 /** 모바일: 떠 있는 알약 탭바. 데스크톱(≥900px): 좌측 레일. */
 export function TabBar({ hidden }: { hidden?: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const me = useMe();
   const stage = useStore((s) => s.data.stage);
+  const email = useStore((s) => s.session.email);
+  const logout = useStore((s) => s.logout);
   const item = (href: string, label: string, Icon: typeof Rows3, desktopOnly = false) => {
     const on = isTabActive(pathname, href);
     return (
@@ -72,8 +76,8 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
       {item(cal.href, cal.label, cal.Icon)}
       {item(shop.href, shop.label, shop.Icon)}
       {item(more.href, more.label, more.Icon)}
-      {me && (
-        <div className="mt-auto hidden lg:block">
+      <div className="mt-auto hidden lg:flex lg:flex-col lg:gap-2">
+        {me && (
           <Link href={`/profile/${me.id}`} className="card-flat flex items-center gap-3 p-3 transition-colors hover:bg-sunk/60">
             <Avatar c={me} stage={stage} size="md" />
             <span className="min-w-0">
@@ -81,8 +85,12 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
               <span className="flex items-center gap-1.5 text-xs text-muted"><DormDot id={me.dorm} /><span className="tnum">{money(me.money)}</span></span>
             </span>
           </Link>
-        </div>
-      )}
+        )}
+        <button onClick={async () => { await logout(); router.replace("/"); }} className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-[13px] text-muted transition-colors hover:bg-sunk/70 hover:text-ink">
+          <LogOut size={16} strokeWidth={1.7} />
+          <span className="min-w-0 flex-1 truncate">로그아웃{email ? ` · ${email}` : ""}</span>
+        </button>
+      </div>
     </nav>
   );
 }

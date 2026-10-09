@@ -10,6 +10,10 @@ export interface Profile {
   pers: string;
   text: string;
   birthday?: string;
+  /** 직접 추가하는 항목 (예: 포지션, 직업, 좋아하는 것) */
+  extra?: { k: string; v: string }[];
+  /** 세부 정보 (마크다운) */
+  detail?: string;
   avatar?: string | null;
   body?: string | null;
 }
