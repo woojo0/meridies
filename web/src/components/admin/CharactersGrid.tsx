@@ -3,7 +3,7 @@
 
 import { ExternalLink, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { dorm as dormOf } from "@/lib/constants";
 import { money } from "@/lib/format";
 import { toast, useOverlay } from "@/lib/overlay";
@@ -23,33 +23,41 @@ export function CharactersGrid() {
   const openSheet = useOverlay((s) => s.openSheet);
   const router = useRouter();
   const [menu, setMenu] = useState<Menu>(null);
+  const wrapRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
+  // 메뉴 밖을 누르거나 Esc를 누르면 닫혀요. (우클릭 자체로는 닫히지 않게 mousedown 기준)
   useEffect(() => {
     if (!menu) return;
-    const close = () => setMenu(null);
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    document.addEventListener("click", close);
-    document.addEventListener("scroll", close, true);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("click", close); document.removeEventListener("scroll", close, true); document.removeEventListener("keydown", onKey); };
+    const onDown = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    const id = setTimeout(() => { document.addEventListener("mousedown", onDown); document.addEventListener("keydown", onKey); }, 0);
+    return () => { clearTimeout(id); document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [menu]);
 
   const openMenu = (e: React.MouseEvent, c: Character) => {
     e.preventDefault(); e.stopPropagation();
-    const W = 200, H = 196;
-    setMenu({ x: Math.min(e.clientX, window.innerWidth - W - 8), y: Math.min(e.clientY, window.innerHeight - H - 8), c });
+    // 데스크톱 축소(zoom) 보정: 섹션 기준 좌표로 바꿔 absolute로 띄워요.
+    const wrap = wrapRef.current; if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const scaleEl = document.querySelector<HTMLElement>(".app-scale");
+    const z = scaleEl ? parseFloat(getComputedStyle(scaleEl).zoom || "1") || 1 : 1;
+    const W = 200, H = 200;
+    const x = Math.max(0, Math.min((e.clientX - rect.left) / z, rect.width / z - W));
+    const y = Math.max(0, Math.min((e.clientY - rect.top) / z, rect.height / z - H));
+    setMenu({ x, y, c });
   };
 
   const list = [...chars].sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
   return (
-    <section className="card mt-3 p-5 lg:col-span-2">
+    <section ref={wrapRef} className="card relative mt-3 p-5 lg:col-span-full">
       <div className="mb-1 flex items-baseline justify-between gap-3">
         <h3 className="text-[17px]">캐릭터 관리</h3>
         <span className="text-xs text-muted">{chars.length}명 · 카드를 우클릭하면 메뉴가 열려요</span>
       </div>
       <p className="mb-4 text-[13.5px] leading-relaxed text-muted">클릭하면 프로필, 우클릭하면 수정·운영자 메시지·삭제. 삭제하면 캐릭터·성적·재화·비밀 설정이 지워지고 그 계정은 다시 등록할 수 있어요.</p>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6 lg:gap-4">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-7 lg:gap-4">
         {list.map((c) => {
           const p = prof(c, stage).p;
           const owner = users.find((u) => u.charId === c.id);
@@ -74,7 +82,7 @@ export function CharactersGrid() {
                   role="button"
                   aria-label="메뉴"
                   onClick={(e) => openMenu(e, c)}
-                  className="absolute right-1.5 top-1.5 grid size-7 place-items-center rounded-full bg-surface/85 text-muted opacity-0 shadow-card transition-opacity group-hover:opacity-100"
+                  className="absolute right-1.5 top-1.5 grid size-7 place-items-center rounded-full bg-surface/90 text-muted shadow-card transition-colors hover:text-ink"
                 >⋯</span>
               </div>
               <div className="px-3 pt-2.5 pb-3">
@@ -93,10 +101,12 @@ export function CharactersGrid() {
 
       {menu && (
         <div
+          ref={menuRef}
           role="menu"
-          className="anim-up fixed z-[70] w-[200px] rounded-2xl border border-line bg-surface p-1.5 shadow-float"
+          className="anim-up absolute z-[70] w-[200px] rounded-2xl border border-line bg-surface p-1.5 shadow-float"
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
         >
           <div className="truncate px-3 py-1.5 text-xs text-muted">{menu.c.name}</div>
           {[

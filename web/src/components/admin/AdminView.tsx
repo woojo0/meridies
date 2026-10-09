@@ -46,7 +46,7 @@ export function AdminView() {
   const [notice, setNotice] = useState(data.notice?.text ?? "");
 
   return (
-    <div className="lg:grid lg:grid-cols-2 lg:gap-x-5">
+    <div className="lg:grid lg:grid-cols-2 lg:gap-x-5 xl:grid-cols-3">
       {LIVE && <MembersCard />}
       <Card title="성장 단계" desc="바꾸면 커뮤 전체의 프로필·두상이 그 단계로 바뀌어요. 이미 쓴 글은 작성 당시 모습을 유지하고, 기숙사 역극방은 새로 열려요.">
         <Segmented

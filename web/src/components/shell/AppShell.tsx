@@ -155,7 +155,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
 
   return (
     <div className="app-scale lg:pl-[var(--rail)]">
-      <TopBar me={me} title={pageTitle} root={root} unread={unread} wide={wide} docWide={docWide || adminWide} />
+      <TopBar me={me} title={pageTitle} root={root} unread={unread} wide={wide || adminWide} docWide={docWide} />
       <main
         className={cx(
           "mx-auto w-full max-w-[var(--content)] px-5 pt-2 pb-[calc(110px+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-28",
@@ -163,7 +163,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
           pathname === "/dorm" && "pb-[calc(190px+env(safe-area-inset-bottom,0px))]",
           wide && "lg:max-w-[1330px]",
           docWide && "lg:max-w-[960px]",
-          adminWide && "lg:max-w-[1100px]",
+          adminWide && "lg:max-w-[1330px]",
         )}
       >
         {children}
