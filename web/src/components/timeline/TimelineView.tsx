@@ -4,6 +4,7 @@ import { Bell, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { CATS } from "@/lib/constants";
 import { ago, cx, fmtDate, ymd } from "@/lib/format";
+import { useEffect, useRef } from "react";
 import { useNow } from "@/lib/hooks";
 import { useStore } from "@/lib/store";
 import { Empty } from "../ui/primitives";
@@ -17,9 +18,21 @@ const catDot: Record<string, string> = { event: "bg-aurora", story: "bg-gold", n
 export function TimelineView() {
   const now = useNow();
   const posts = useStore((s) => s.data.posts);
+  const postLimit = useStore((s) => s.postLimit);
+  const hasMore = useStore((s) => s.postsHasMore);
+  const loadMore = useStore((s) => s.loadMorePosts);
+  const sentinel = useRef<HTMLDivElement>(null);
   const notice = useStore((s) => s.data.notice);
   const events = useStore((s) => s.data.events);
-  const sorted = [...posts].sort((a, b) => b.at - a.at);
+  const sorted = [...posts].sort((a, b) => b.at - a.at).slice(0, postLimit);
+  const more = hasMore && (posts.length > postLimit || posts.length >= postLimit);
+  // 바닥 근처에 오면 20개씩 더 불러와요.
+  useEffect(() => {
+    const el = sentinel.current; if (!el || !more) return;
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { rootMargin: "400px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [more, loadMore, sorted.length]);
   const today = ymd(new Date(now));
   const up = events.filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
 
@@ -55,6 +68,8 @@ export function TimelineView() {
         {sorted.map((p) => <PostCard key={p.id} p={p} now={now} />)}
         {!sorted.length && <Empty>아직 글이 없어요.</Empty>}
       </div>
+      <div ref={sentinel} className="h-px" aria-hidden="true" />
+      {more ? <p className="py-6 text-center text-xs text-muted">더 불러오는 중…</p> : sorted.length >= 20 ? <p className="py-6 text-center text-xs text-muted">마지막 글이에요.</p> : null}
     </>
   );
 }

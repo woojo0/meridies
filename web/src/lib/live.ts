@@ -6,7 +6,7 @@ import {
   EmailAuthProvider, createUserWithEmailAndPassword, onAuthStateChanged, reauthenticateWithCredential, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updatePassword, type User,
 } from "firebase/auth";
 import {
-  addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getDownloadURL, ref as sref, uploadString } from "firebase/storage";
@@ -85,7 +85,7 @@ function subscribeCore(user: User, admin: boolean) {
     setData({ chars: s.docs.map((d) => { const c = withId<Character>(d); return { ...c, tx: c.id === useStore.getState().session.charId ? myTx : [] }; }) });
     markReady("chars");
   }, fail("캐릭터")));
-  sub("posts", () => onSnapshot(query(collection(db, "posts"), orderBy("at", "desc")), (s) => setData({ posts: s.docs.map((d) => withId<Post>(d)) }), fail("타임라인")));
+  subscribePosts(useStore.getState().postLimit);
   sub("rooms", () => onSnapshot(query(collection(db, "rooms"), orderBy("lastAt", "desc")), (s) => {
     const cur = useStore.getState().data.rooms;
     setData({ rooms: s.docs.map((d) => { const r = withId<Room>(d); const old = cur.find((x) => x.id === r.id); return { ...r, messages: old?.messages ?? [] }; }) });
@@ -140,6 +140,17 @@ export function watchDorm(dormId: DormId, stage: number) {
   watchTyping(`dorm:${key}`);
   return () => { unsub(`dorm:${key}`); unsub(`typing:dorm:${key}`); };
 }
+
+/* ───────── 타임라인 페이지 단위 구독 ───────── */
+function subscribePosts(n: number) {
+  const db = fbDb();
+  sub("posts", () => onSnapshot(query(collection(db, "posts"), orderBy("at", "desc"), limit(n)), (s) => {
+    setData({ posts: s.docs.map((d) => withId<Post>(d)) });
+    useStore.setState({ postsHasMore: s.docs.length >= n });
+  }, fail("타임라인")));
+}
+/** 더 불러오기: 상한을 늘려 다시 구독해요(최신 글 실시간 반영은 유지). */
+export function resubscribePosts(n: number) { unsub("posts"); subscribePosts(n); }
 
 /* ───────── 운영자 문의함 ───────── */
 function chatKey(charId: string) { return `chat:${charId}`; }

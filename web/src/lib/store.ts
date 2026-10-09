@@ -42,6 +42,9 @@ interface State {
   /** 운영자가 고친 문서(세계관·편람·규칙). 없으면 기본 원문을 써요. */
   docTexts: Record<string, DocEntry>;
   adminChats: Record<string, ChatThread>;
+  /** 타임라인에 불러온 글 수 상한(20개씩 늘어나요) */
+  postLimit: number;
+  postsHasMore: boolean;
 
   now: () => number;
   me: () => Character | null;
@@ -53,6 +56,7 @@ interface State {
   switchChar: (id: string) => void;
 
   addPost: (text: string, images: string[]) => Promise<void>;
+  loadMorePosts: () => void;
   editPost: (id: string, text: string) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
   toggleLike: (id: string) => Promise<void>;
@@ -154,6 +158,8 @@ export const useStore = create<State>()(
         privates: {},
         docTexts: {},
         adminChats: {},
+        postLimit: 20,
+        postsHasMore: true,
 
         now: () => Date.now() + get().shift,
         me: () => get().data.chars.find((c) => c.id === get().session.charId) ?? null,
@@ -164,6 +170,7 @@ export const useStore = create<State>()(
         setAdmin: (admin) => set((s) => { s.session.admin = admin; }),
         switchChar: (id) => set((s) => { s.session.charId = id; }),
 
+        loadMorePosts: () => { const n = get().postLimit + 20; set((s) => { s.postLimit = n; }); if (LIVE) live().resubscribePosts(n); },
         addPost: async (text, images) => { if (LIVE) return L().addPost(text, images); set((s) => {
           const m = mine(s.data); if (!m) return;
           s.data.posts.push({ id: uid(), charId: m.id, stage: s.data.stage, text, images, at: get().now(), likes: [] });
