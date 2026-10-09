@@ -107,7 +107,7 @@ export function ProfileView({ c: base }: { c: Character }) {
   /* ───────── 데스크톱: 왼쪽 전신, 오른쪽 두상+프로필 카드, 아래 기타 정보 ───────── */
   if (desktop) {
     return (
-      <div className="mt-2 grid grid-cols-[790px_minmax(0,1fr)] gap-7">
+      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_460px] gap-7">
         <aside className="self-start">
           <div className="card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
