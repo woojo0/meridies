@@ -14,7 +14,7 @@ import { DORMS } from "./constants";
 import { seed } from "./seed";
 import { call, fbAuth, fbDb, fbStorage } from "./firebase";
 import { uid as mkId } from "./format";
-import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, SubjectId, Thread } from "./types";
+import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, Thread } from "./types";
 import { useStore, type ChatMsg, type ChatThread, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
 import { increment } from "firebase/firestore";
 
@@ -303,6 +303,8 @@ export const L = {
     clearTyping(`dorm:${key}`, m.id);
   },
   addEvent: (e: Omit<CalEvent, "id">) => addDoc(collection(fbDb(), "events"), e),
+  updateEvent: (id: string, e: Omit<CalEvent, "id">) => updateDoc(doc(fbDb(), "events", id), { ...e }),
+  deleteEvent: (id: string) => deleteDoc(doc(fbDb(), "events", id)),
   async saveProfile(stage: Stage, p: Profile, charId?: string) {
     const id = charId ?? me().id;
     const avatar = p.avatar ? await upload(`characters/${id}/${stage}/avatar-${Date.now()}.jpg`, p.avatar) : p.avatar ?? null;

@@ -73,6 +73,8 @@ interface State {
   setCalSel: (d: string) => void;
   moveCalMonth: (delta: number) => void;
   addEvent: (e: { title: string; date: string; end: string; cat: CatId; desc: string }) => Promise<void>;
+  updateEvent: (id: string, e: { title: string; date: string; end: string; cat: CatId; desc: string }) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
 
   setShopCat: (c: string) => void;
   buy: (itemId: string) => Promise<Item | null>;
@@ -215,6 +217,8 @@ export const useStore = create<State>()(
 
         setCalSel: (d) => set((s) => { s.ui.calSel = d; const [y, m] = d.split("-"); s.ui.calMonth = [+y, +m - 1]; }),
         moveCalMonth: (delta) => set((s) => { let [y, m] = s.ui.calMonth; m += delta; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } s.ui.calMonth = [y, m]; }),
+        updateEvent: async (id, e) => { if (LIVE) { await L().updateEvent(id, e); set((s) => { s.ui.calSel = e.date; }); return; } set((s) => { const ev = s.data.events.find((x) => x.id === id); if (ev) Object.assign(ev, e); s.ui.calSel = e.date; }); },
+        deleteEvent: async (id) => { if (LIVE) return L().deleteEvent(id); set((s) => { s.data.events = s.data.events.filter((x) => x.id !== id); }); },
         addEvent: async (e) => { if (LIVE) { await L().addEvent(e); set((s) => { s.ui.calSel = e.date; }); return; } set((s) => { s.data.events.push({ id: uid(), ...e }); s.ui.calSel = e.date; }); },
 
         setShopCat: (c) => set((s) => { s.ui.shopCat = c; }),
