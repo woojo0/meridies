@@ -193,6 +193,9 @@ export const auth = {
 /* ───────── 이미지 ───────── */
 async function upload(path: string, dataUrl: string) {
   if (!dataUrl.startsWith("data:")) return dataUrl;
+  const m = /^data:image\/(png|webp|gif|jpeg)/.exec(dataUrl);
+  const ext = m ? (m[1] === "jpeg" ? "jpg" : m[1]) : "jpg";
+  path = path.replace(/\.jpg$/, `.${ext}`);
   const r = sref(fbStorage(), path);
   await uploadString(r, dataUrl, "data_url");
   return getDownloadURL(r);

@@ -47,7 +47,7 @@ export function fmtDateLong(s: string) {
 
 export const cx = (...a: Array<string | false | null | undefined>) => a.filter(Boolean).join(" ");
 
-/** Resize an uploaded image to ≤1080px and return a JPEG data URL. */
+/** 업로드 이미지를 긴 변 1080px로 줄여 데이터 URL로. PNG/WebP는 형식을 유지하고(투명도 보존), 그 외는 JPEG. */
 export function shrinkImage(f: File): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -61,7 +61,9 @@ export function shrinkImage(f: File): Promise<string> {
         cv.width = Math.round(im.width * k);
         cv.height = Math.round(im.height * k);
         cv.getContext("2d")!.drawImage(im, 0, 0, cv.width, cv.height);
-        res(cv.toDataURL("image/jpeg", 0.82));
+        const keep = f.type === "image/png" || f.type === "image/webp" || f.type === "image/gif";
+        if (f.type === "image/gif" && k === 1) { res(r.result as string); return; } // 작은 GIF는 원본 그대로(애니메이션 보존)
+        res(keep ? cv.toDataURL(f.type === "image/gif" ? "image/png" : f.type) : cv.toDataURL("image/jpeg", 0.82));
       };
       im.src = r.result as string;
     };
