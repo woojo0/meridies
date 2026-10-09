@@ -109,19 +109,21 @@ export function LetterWrite({ threadId }: { threadId?: string }) {
   const to = t && other ? aliasOf(t, other, stage, nameOf) : null;
   const back = () => { closeSheet(); openDrawer("pen"); };
 
-  const send = () => {
+  const send = async () => {
     const txt = text.trim();
     if (!txt) { toast("편지를 써 주세요."); return; }
+    try {
     if (t) {
-      const r = letterReply(t.id, txt);
+      const r = await letterReply(t.id, txt);
       if (r === "no-pigeon") { toast("마법 비둘기가 필요해요."); return; }
       closeSheet(); openDrawer("pen"); toast("비둘기가 답장을 물고 날아갔어요. 1시간 뒤에 도착해요.");
     } else {
-      const r = letterNew(txt);
+      const r = await letterNew(txt);
       if (r === "no-stamp") { toast("마법 우표가 필요해요."); return; }
       if (r === "lost") { closeSheet(); openDrawer("noti"); toast("편지가 선생님 책상 위로 가 버렸어요."); return; }
       closeSheet(); openDrawer("pen"); toast("우표를 붙여 편지를 띄웠어요. 1시간 뒤에 도착해요.");
     }
+    } catch (e) { toast((e as Error).message); }
   };
 
   return (

@@ -33,7 +33,7 @@ export function RoomList({ charId, showUnread, onNavigate }: { charId: string; s
               <RowTitle>
                 {o.name} {r.status === "done" && <Pill className="ml-1 align-middle">완료</Pill>}
               </RowTitle>
-              <RowSub>{last ? last.text : r.source.text}</RowSub>
+              <RowSub>{last ? last.text : (r as { lastText?: string }).lastText ?? r.source.text}</RowSub>
             </span>
             {unread && <span className="size-2 shrink-0 rounded-full bg-crit" aria-label="새 답장" />}
             <span className="shrink-0 text-xs text-muted">{ago(r.lastAt, now)}</span>

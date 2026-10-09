@@ -104,12 +104,43 @@ node scripts/set-admin.mjs 운영자이메일@example.com
 3. Environment Variables에 7단계의 6개 값을 그대로 추가
 4. Deploy → 나온 도메인을 2-3의 **승인된 도메인**에 추가
 
-## 이후 제가 하는 코드 작업 순서
+## 10. 코드가 붙은 뒤 할 일 (Cloud Shell에서)
 
-1. `web/src/lib/firebase.ts`는 만들어 두었음. 로그인 화면을 실제 이메일/비밀번호 로그인·가입으로 교체, 가입 승인 흐름
-2. Firestore 데이터 모델(`lib/types.ts` 기준)과 보안 규칙, 실시간 리스너로 타임라인·역극 반영
-3. 확률·재화·시간 판정(공부, 아르바이트, 송금 수수료, 펜팔 분실, 배급)을 Cloud Functions로 이동
-4. Storage 업로드 + 리사이즈(WebP)
-5. 운영자 클레임 스크립트, 운영자 화면 연결
+로그인·데이터·Functions 연결이 코드에 들어가 있습니다. Cloud Shell(https://console.cloud.google.com → 터미널 아이콘)에서 한 줄씩:
 
-세팅이 끝나면 "파이어베이스 세팅 끝났어"라고만 알려주세요. 그때부터 1번부터 이어서 진행합니다.
+```bash
+cd ~/meridies && git pull
+```
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,storage --project meridies-8cbe6
+```
+
+```bash
+cd ~/meridies/functions && npm install && cd .. && firebase deploy --only functions --project meridies-8cbe6
+```
+
+Functions 첫 배포는 5~10분 걸리고, 중간에 API 사용 설정(Cloud Build, Artifact Registry 등)을 물으면 `Y`로 답합니다.
+
+### 첫 운영자 지정
+
+1. 사이트(로컬 `npm run dev` 또는 Vercel)에서 운영자로 쓸 이메일로 **가입 신청**을 한 번 합니다.
+2. Firebase 콘솔 → 프로젝트 설정 → **서비스 계정** → **새 비공개 키 생성** → JSON 다운로드
+3. Cloud Shell 왼쪽 위 **⋮ → 업로드**로 그 JSON을 올리고 `~/meridies/serviceAccount.json`으로 이동:
+
+```bash
+mv ~/*.json ~/meridies/serviceAccount.json && cd ~/meridies && npm install firebase-admin && node scripts/set-admin.mjs 운영자이메일@example.com
+```
+
+4. 사이트에서 로그아웃 → 다시 로그인 → **더보기 → 운영자 도구**에서 **초기 데이터 심기**를 한 번 누릅니다 (상점·아르바이트·기본 설정).
+5. 같은 화면 **가입 승인**에서 들어오는 신청을 승인합니다. 승인된 사람은 캐릭터 등록 화면으로 자동 이동합니다.
+
+끝난 뒤에는 `serviceAccount.json`을 지워도 됩니다 (`rm ~/meridies/serviceAccount.json`).
+
+## 11. 어떻게 돌아가나
+
+- 로그인: 이메일/비밀번호. 가입은 `pending` → 운영자 승인 → `member`.
+- 데이터: Firestore 실시간 구독. 타임라인·역극·기숙사·알림이 다른 사람 화면에 바로 반영.
+- 계산: 공부·아르바이트·송금·상점·펜팔·배급·운영자 조정은 전부 Cloud Functions(서울 리전)에서 처리.
+- 이미지: Storage에 저장. 업로드 전에 브라우저에서 1080px로 줄임.
+- 입력중 표시: `typing/{방}` 문서에 캐릭터별 시각을 3초마다 기록.

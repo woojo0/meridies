@@ -1,8 +1,12 @@
 /**
  * Firebase 초기화. 값은 `web/.env.local`(NEXT_PUBLIC_FIREBASE_*)에서 읽어요.
- * 아직 화면과 연결되지 않았고, 다음 단계(인증 → Firestore → Functions)에서 여기서 가져다 씁니다.
+ * 설정이 비어 있으면 앱은 데모(localStorage) 모드로 동작합니다.
  */
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFunctions, httpsCallable, type Functions } from "firebase/functions";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,14 +17,29 @@ const config = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-/** 설정이 모두 들어 있으면 true. 비어 있으면 앱은 데모(localStorage) 모드로 동작해요. */
-export const firebaseConfigured = Object.values(config).every(Boolean);
+/** 설정이 모두 들어 있으면 true → 실제 서버 모드. */
+export const LIVE = Object.values(config).every(Boolean);
+export const REGION = "asia-northeast3";
 
 let app: FirebaseApp | null = null;
-
-/** 브라우저에서 한 번만 초기화해서 돌려줘요. 설정이 없으면 null. */
-export function getFirebaseApp(): FirebaseApp | null {
-  if (!firebaseConfigured) return null;
+export function fbApp(): FirebaseApp {
+  if (!LIVE) throw new Error("Firebase 설정이 없어요.");
   if (!app) app = getApps().length ? getApp() : initializeApp(config);
   return app;
+}
+export const fbAuth = (): Auth => getAuth(fbApp());
+export const fbDb = (): Firestore => getFirestore(fbApp());
+export const fbStorage = (): FirebaseStorage => getStorage(fbApp());
+export const fbFns = (): Functions => getFunctions(fbApp(), REGION);
+
+/** Cloud Function 호출. 에러 메시지는 사용자에게 그대로 보여 줄 수 있게 정리해요. */
+export async function call<TIn, TOut>(name: string, data?: TIn): Promise<TOut> {
+  try {
+    const res = await httpsCallable<TIn, TOut>(fbFns(), name)(data as TIn);
+    return res.data;
+  } catch (e) {
+    const err = e as { code?: string; message?: string };
+    const msg = err.message?.replace(/^.*?:\s*/, "") || "요청에 실패했어요.";
+    throw new Error(msg);
+  }
 }

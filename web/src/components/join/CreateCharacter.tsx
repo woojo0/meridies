@@ -19,6 +19,7 @@ export function CreateCharacter() {
   const [name, setName] = useState("");
   const [gender, setGender] = useState("");
   const [height, setHeight] = useState("");
+  const [birthday, setBirthday] = useState("");
   const [dorm, setDorm] = useState<DormId>("aurora");
   const [vals, setVals] = useState<number[]>(SUBJECTS.map((s) => (s.id === "kw" ? KW_MAX_ALLOC : 225)));
   const sum = vals.reduce((a, b) => a + b, 0);
@@ -28,12 +29,16 @@ export function CreateCharacter() {
     setVals((a) => a.map((x, k) => (k === i ? Math.max(0, Math.min(max, Math.floor(v) || 0)) : x)));
   };
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
     if (!name.trim()) { toast("이름을 써 주세요."); return; }
     if (rem !== 0) { toast("남은 점수가 0이어야 해요."); return; }
-    const id = createCharacter({ name: name.trim(), dorm, gender: gender.trim(), height: height.trim(), scores: vals });
-    toast(`${name.trim()}(으)로 루체른에 입학했어요.`);
-    router.push(`/profile/${id}`);
+    setBusy(true);
+    try {
+      const id = await createCharacter({ name: name.trim(), dorm, gender: gender.trim(), height: height.trim(), birthday: birthday.trim(), scores: vals });
+      toast(`${name.trim()}(으)로 루체른에 입학했어요.`);
+      router.push(`/profile/${id}`);
+    } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
 
   return (
@@ -51,6 +56,7 @@ export function CreateCharacter() {
           <Field label="성별" htmlFor="cc-g"><Input id="cc-g" placeholder="여 / 남 / 기타" value={gender} onChange={(e) => setGender(e.target.value)} /></Field>
           <Field label="키" htmlFor="cc-h"><Input id="cc-h" placeholder="140cm" value={height} onChange={(e) => setHeight(e.target.value)} /></Field>
         </div>
+        <Field label="생일" htmlFor="cc-b" hint="제국력 817년생. 예: 817.09.21"><Input id="cc-b" placeholder="817.09.21" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></Field>
       </div>
 
       <SectionHead title="학부" aside="화로가 피운 색" />
@@ -91,7 +97,7 @@ export function CreateCharacter() {
         })}
       </div>
       <p className="mt-3 text-[12.5px] text-muted">광휘 실습은 녹스본 세대의 실기 부진 설정으로 최대 199점(빅스)까지만 넣을 수 있어요. 제출 후 수정은 운영자만 할 수 있어요.</p>
-      <Button block className="mt-6" disabled={rem !== 0 || !name.trim()} onClick={submit}>루체른에 입학하기</Button>
+      <Button block className="mt-6" disabled={rem !== 0 || !name.trim() || busy} onClick={submit}>{busy ? "등록 중…" : "루체른에 입학하기"}</Button>
     </>
   );
 }

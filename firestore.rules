@@ -129,6 +129,11 @@ service cloud.firestore {
       }
     }
 
+    // ───────── 입력중 표시 (방 키마다 {charId: 시각}) ─────────
+    match /typing/{roomKey} {
+      allow read, write: if isMember();
+    }
+
     // ───────── 알림 ─────────
     match /notifs/{notifId} {
       allow read: if isMember() && resource.data.to == myCharId();

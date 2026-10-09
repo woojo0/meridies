@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { STAGES, dorm as dormOf } from "@/lib/constants";
 import { fmtDur } from "@/lib/format";
-import { useMe, useNow } from "@/lib/hooks";
+import { LIVE } from "@/lib/firebase";
+import { useMe, useNow, useTypingNames } from "@/lib/hooks";
+import { setTyping, watchDorm } from "@/lib/live";
 import { useStore } from "@/lib/store";
 import { Avatar, Crest } from "../ui/identity";
 import { Chip, ChipRow, Empty, Note, SectionHead } from "../ui/primitives";
@@ -25,6 +27,13 @@ export function DormView() {
 
   const visit = me?.visit && me.visit.until > now ? me.visit : null;
   const shownDorm = visit ? viewDorm : null;
+  const dormKey = `${(shownDorm as string) || me?.dorm || ""}-${viewStage ?? stage}`;
+  const typingNames = useTypingNames(`dorm:${dormKey}`);
+  useEffect(() => {
+    if (!LIVE || !me) return;
+    return watchDorm(((shownDorm as string) || me.dorm) as typeof me.dorm, viewStage ?? stage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dormKey]);
   useEffect(() => {
     const el = document.scrollingElement; if (el) window.scrollTo(0, el.scrollHeight);
   }, [dormMsgs, shownDorm, viewStage]);
@@ -74,7 +83,7 @@ export function DormView() {
         {!msgs.length && <Empty>첫 문장을 써 주세요.</Empty>}
       </div>
       {live ? (
-        <Composer placeholder={`${me.name} · 대사 (지문)`} onSend={(t, img) => dormSend(d.id, t, img)} offsetForTabBar />
+        <Composer placeholder={`${me.name} · 대사 (지문)`} onSend={(t, img) => dormSend(d.id, t, img)} offsetForTabBar typingNames={typingNames} onTyping={() => { if (LIVE) setTyping(`dorm:${dormKey}`, me.id); }} />
       ) : (
         <Note>{STAGES[st]} 기숙사 역극은 끝난 기록이에요. 읽기만 할 수 있어요.</Note>
       )}

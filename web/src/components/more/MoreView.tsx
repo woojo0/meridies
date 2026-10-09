@@ -4,6 +4,7 @@ import { BookOpen, ChevronRight, Lock, LogOut, Moon, Monitor, Plus, ShieldCheck,
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { H } from "@/lib/constants";
+import { LIVE } from "@/lib/firebase";
 import { money } from "@/lib/format";
 import { useMe, useTheme } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
@@ -52,7 +53,7 @@ export function MoreView() {
         <MenuRow href="/more/handbook" icon={<BookOpen size={ic} strokeWidth={1.6} />} title="루체른 생활 편람" sub="물가, 캠퍼스, 시간표, 성적, 소문, 연표" />
         <MenuRow href="/more/rules" icon={<Lock size={ic} strokeWidth={1.6} />} title="규칙" sub="커뮤 운영 규칙" />
         <MenuRow href="/more/characters" icon={<Users size={ic} strokeWidth={1.6} />} title="캐릭터 목록" sub={`${chars.length}명`} />
-        <MenuRow href="/join" icon={<Plus size={ic} strokeWidth={1.6} />} title="캐릭터 등록" sub="성적 2,000점 분배 · 데모에서는 여러 명 가능" />
+        {!LIVE && <MenuRow href="/join" icon={<Plus size={ic} strokeWidth={1.6} />} title="캐릭터 등록" sub="성적 2,000점 분배 · 데모에서는 여러 명 가능" />}
       </div>
 
       <SectionHead title="설정" />
@@ -66,18 +67,21 @@ export function MoreView() {
           </ChipRow>
           <p className="mt-1 text-xs text-muted">밤에 역극하는 사용자를 위해 어두운 화면을 기본 지원해요.</p>
         </div>
-        <MenuRow icon={<LogOut size={ic} strokeWidth={1.6} />} title="로그아웃" sub="계정에서 나가기" onClick={() => { st.logout(); router.replace("/"); }} />
+        <MenuRow icon={<LogOut size={ic} strokeWidth={1.6} />} title="로그아웃" sub="계정에서 나가기" onClick={async () => { await st.logout(); router.replace("/"); }} />
       </div>
 
       <SectionHead title="운영" />
       <div className="card-flat">
         {admin ? (
           <MenuRow href="/more/admin" icon={<ShieldCheck size={ic} strokeWidth={1.6} />} title="운영자 도구" sub="성장 단계 전환, 학기 마감, 상점 관리" />
+        ) : LIVE ? (
+          <MenuRow icon={<ShieldCheck size={ic} strokeWidth={1.6} />} title="운영자 도구" sub="운영자 계정에만 열려요" onClick={() => toast("운영자 권한이 없어요.")} />
         ) : (
           <MenuRow icon={<ShieldCheck size={ic} strokeWidth={1.6} />} title="운영자 권한 켜기 (데모)" sub="실제 서비스에서는 운영자 계정에만 보여요" onClick={() => { st.setAdmin(true); toast("운영자 권한을 켰어요."); }} />
         )}
       </div>
 
+      {!LIVE && (<>
       <SectionHead title="데모 설정" aside="기획 확인용" />
       <div className="card-flat divide-y divide-line">
         <div className="px-4 py-4">
@@ -95,7 +99,8 @@ export function MoreView() {
           </div>
         </div>
       </div>
-      <Note>이 초기 버전의 데이터는 예시이고, 이 브라우저에만 저장돼요. 실제 서비스에서는 Firebase에 저장되어 다른 사람과 실시간으로 공유돼요.</Note>
+      <Note>이 데모의 데이터는 예시이고, 이 브라우저에만 저장돼요.</Note>
+      </>)}
     </>
   );
 }

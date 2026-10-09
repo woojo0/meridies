@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { ago } from "@/lib/format";
-import { useMe, useNow } from "@/lib/hooks";
+import { LIVE } from "@/lib/firebase";
+import { useMe, useNow, useTypingNames } from "@/lib/hooks";
+import { setTyping, watchRoom } from "@/lib/live";
 import { toast, useOverlay } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import type { Msg } from "@/lib/types";
@@ -25,6 +27,11 @@ export function RoomView({ id }: { id: string }) {
   const msgCount = r?.messages.length ?? 0;
   const roomId = r?.id;
   const meId = me?.id;
+  const typingNames = useTypingNames(`room:${id}`);
+  useEffect(() => {
+    if (!LIVE) return;
+    return watchRoom(id);
+  }, [id]);
   // 방에 들어오거나 새 메시지가 오면 읽음 처리. (r 자체를 의존성에 넣으면 읽음 갱신이 다시 효과를 부르니 id만.)
   useEffect(() => { if (roomId && meId) markRoomRead(roomId); }, [roomId, meId, msgCount, markRoomRead]);
   useEffect(() => { const el = document.scrollingElement; if (el) window.scrollTo(0, el.scrollHeight); }, [msgCount]);
@@ -68,7 +75,7 @@ export function RoomView({ id }: { id: string }) {
       ) : r.status === "done" ? (
         <ReadOnlyBar>완료된 역극이에요. <button className="underline underline-offset-2" onClick={() => rpReopen(r.id)}>다시 열기</button></ReadOnlyBar>
       ) : (
-        <Composer placeholder={`${me.name} · 대사 (지문)`} onSend={(t, img) => rpSend(r.id, t, img)} />
+        <Composer placeholder={`${me.name} · 대사 (지문)`} onSend={(t, img) => rpSend(r.id, t, img)} typingNames={typingNames} onTyping={() => { if (LIVE) setTyping(`room:${r.id}`, me.id); }} />
       )}
     </>
   );

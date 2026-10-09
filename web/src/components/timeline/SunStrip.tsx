@@ -43,7 +43,7 @@ export function SunStrip() {
           <span className="inline-flex h-7 shrink-0 items-center rounded-full bg-sunk px-2.5 text-[11.5px] text-muted">배급 받음</span>
         ) : (
           <button
-            onClick={() => { const n = ration(); toast(n ? `솔리스 ${n}병을 배급받았어요. (광휘 실습 ${GRADES[g].k})` : "오늘 배급은 이미 받았어요."); }}
+            onClick={async () => { try { const n = await ration(); toast(n ? `솔리스 ${n}병을 배급받았어요. (광휘 실습 ${GRADES[g].k})` : "오늘 배급은 이미 받았어요."); } catch (e) { toast((e as Error).message); } }}
             className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-gold/45 bg-surface px-2.5 text-[11.5px] font-medium text-gold shadow-[0_1px_0_var(--gold-soft)] transition-colors hover:bg-gold-soft active:translate-y-px"
           >
             <FlaskConical size={12} strokeWidth={1.9} /> 배급 {amt}병

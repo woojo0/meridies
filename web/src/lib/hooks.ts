@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { LIVE } from "./firebase";
 import { useStore } from "./store";
 
 /* ── 전역 1초 시계 (구독자가 있을 때만 돈다) ── */
@@ -26,31 +27,53 @@ export function useNow(ms = 30_000) {
   );
   return t + shift;
 }
-
-/** 카운트다운용 1초 시계. */
 export const useTick = () => useNow(1000);
 
 export function useMe() {
   const id = useStore((s) => s.session.charId);
   return useStore((s) => s.data.chars.find((c) => c.id === id) ?? null);
 }
-
 export function useChar(id: string | undefined) {
   return useStore((s) => s.data.chars.find((c) => c.id === id));
 }
 
-/** 브라우저에 저장된 상태를 불러온 뒤 true. */
+/** 데모: 브라우저 저장소 복원 뒤 true. 실제 서버: 로그인 상태와 첫 데이터가 도착한 뒤 true. */
 export function useHydrated() {
   const hydrated = useStore((s) => s.hydrated);
   useEffect(() => {
-    if (!useStore.persist.hasHydrated()) {
-      useStore.persist.rehydrate();
+    if (!useStore.persist.hasHydrated()) useStore.persist.rehydrate();
+    if (LIVE) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require("./live") as typeof import("./live")).startLive();
     } else if (!useStore.getState().hydrated) {
       useStore.setState({ hydrated: true });
     }
   }, []);
   return hydrated;
 }
+
+/** 방의 입력중 캐릭터 이름들 (나 제외, 최근 6초). */
+export function useTypingNames(key: string) {
+  const now = useTick();
+  const map = useStore((s) => s.typing[key]);
+  const meId = useStore((s) => s.session.charId);
+  const chars = useStore((s) => s.data.chars);
+  if (!map) return [] as string[];
+  return Object.entries(map)
+    .filter(([id, t]) => id !== meId && now - t < 6000)
+    .map(([id]) => chars.find((c) => c.id === id)?.name)
+    .filter((n): n is string => !!n);
+}
+
+/** CSS 미디어 쿼리 구독. 서버에서는 false. */
+export function useMediaQuery(q: string) {
+  return useSyncExternalStore(
+    (cb) => { const m = window.matchMedia(q); m.addEventListener("change", cb); return () => m.removeEventListener("change", cb); },
+    () => window.matchMedia(q).matches,
+    () => false,
+  );
+}
+export const useDesktop = () => useMediaQuery("(min-width: 900px)");
 
 /* ── 테마 ── */
 export type Theme = "system" | "light" | "dark";

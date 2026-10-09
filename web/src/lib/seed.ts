@@ -15,7 +15,9 @@ export function scoresFrom(arr: number[]): Record<SubjectId, number> {
   return o;
 }
 
-const P = (gender: string, age: string, height: string, pers: string, text: string): Profile => ({ gender, age, height, pers, text });
+const BD = ["817.09.21", "817.03.02", "817.11.30", "817.07.14", "817.12.08", "817.05.19"];
+let bdi = 0;
+const P = (gender: string, age: string, height: string, pers: string, text: string): Profile => ({ gender, age, height, pers, text, birthday: BD[bdi++ % BD.length] });
 
 export function seed(): Data {
   const t = Date.now();

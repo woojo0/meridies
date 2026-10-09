@@ -1,0 +1,272 @@
+/**
+ * 실제 서버 모드: Firestore 실시간 구독 + 쓰기 + Cloud Functions 호출.
+ * 스토어(store.ts)는 모드에 따라 이 모듈 또는 데모 구현으로 위임해요.
+ */
+import {
+  createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User,
+} from "firebase/auth";
+import {
+  addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  type Unsubscribe,
+} from "firebase/firestore";
+import { getDownloadURL, ref as sref, uploadString } from "firebase/storage";
+import { call, fbAuth, fbDb, fbStorage } from "./firebase";
+import { uid as mkId } from "./format";
+import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, SubjectId, Thread } from "./types";
+import { useStore, type JobResult, type StudyResult } from "./store";
+
+export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
+
+const subs = new Map<string, Unsubscribe>();
+function sub(key: string, start: () => Unsubscribe) {
+  if (subs.has(key)) return;
+  subs.set(key, start());
+}
+function unsub(prefix: string) {
+  for (const [k, u] of subs) if (k.startsWith(prefix)) { u(); subs.delete(k); }
+}
+const setData = (patch: Partial<ReturnType<typeof useStore.getState>["data"]>) => useStore.setState((s) => ({ data: { ...s.data, ...patch } }));
+const withId = <T,>(d: { id: string; data: () => unknown }) => ({ id: d.id, ...(d.data() as object) }) as T;
+
+let started = false;
+let ready = { settings: false, chars: false, user: false };
+const markReady = (k: keyof typeof ready) => { ready[k] = true; if (ready.settings && ready.chars && ready.user) useStore.setState({ hydrated: true }); };
+
+/** 앱이 뜰 때 한 번 호출. 로그인 상태를 따라 구독을 켜고 끕니다. */
+export function startLive() {
+  if (started) return;
+  started = true;
+  onAuthStateChanged(fbAuth(), async (user) => {
+    unsub("");
+    ready = { settings: false, chars: false, user: false };
+    if (!user) {
+      useStore.setState({ session: { charId: null, admin: false, uid: null, status: null, email: null }, hydrated: true });
+      return;
+    }
+    const token = await user.getIdTokenResult(true);
+    const admin = token.claims.admin === true;
+    useStore.setState({ hydrated: false, session: { charId: null, admin, uid: user.uid, status: null, email: user.email } });
+    subscribeCore(user, admin);
+  });
+}
+
+function subscribeCore(user: User, admin: boolean) {
+  const db = fbDb();
+  // 내 계정 문서
+  sub("user", () => onSnapshot(doc(db, "users", user.uid), (s) => {
+    const u = s.data() as Omit<MemberUser, "uid"> | undefined;
+    useStore.setState((st) => ({ session: { ...st.session, status: u?.status ?? null, charId: u?.charId ?? null, admin } }));
+    if (u?.charId) subscribeMine(u.charId);
+    markReady("user");
+  }));
+  sub("settings", () => onSnapshot(doc(db, "settings", "global"), (s) => {
+    const g = (s.data() ?? {}) as { stage?: Stage; notice?: { text: string; at: number } | null; results?: { topN: number; top: string[]; dorms: { id: DormId; n: number }[] } | null };
+    setData({ stage: g.stage ?? 0, notice: g.notice ?? null, results: g.results ?? null });
+    markReady("settings");
+  }));
+  sub("chars", () => onSnapshot(collection(db, "characters"), (s) => {
+    const myTx = useStore.getState().myTx;
+    setData({ chars: s.docs.map((d) => { const c = withId<Character>(d); return { ...c, tx: c.id === useStore.getState().session.charId ? myTx : [] }; }) });
+    markReady("chars");
+  }));
+  sub("posts", () => onSnapshot(query(collection(db, "posts"), orderBy("at", "desc")), (s) => setData({ posts: s.docs.map((d) => withId<Post>(d)) })));
+  sub("rooms", () => onSnapshot(query(collection(db, "rooms"), orderBy("lastAt", "desc")), (s) => {
+    const cur = useStore.getState().data.rooms;
+    setData({ rooms: s.docs.map((d) => { const r = withId<Room>(d); const old = cur.find((x) => x.id === r.id); return { ...r, messages: old?.messages ?? [] }; }) });
+  }));
+  sub("events", () => onSnapshot(collection(db, "events"), (s) => setData({ events: s.docs.map((d) => withId<CalEvent>(d)) })));
+  sub("items", () => onSnapshot(collection(db, "items"), (s) => setData({ items: s.docs.map((d) => withId<Item>(d)) })));
+  sub("jobs", () => onSnapshot(collection(db, "jobs"), (s) => setData({ jobs: s.docs.map((d) => withId<Job>(d)) })));
+  if (admin) {
+    sub("adminLog", () => onSnapshot(query(collection(db, "adminLog"), orderBy("at", "desc")), (s) => setData({ adminLog: s.docs.map((d) => d.data() as { at: number; text: string }) })));
+    sub("users", () => onSnapshot(collection(db, "users"), (s) => useStore.setState({ users: s.docs.map((d) => withId<MemberUser>(d)) })));
+  }
+}
+
+function subscribeMine(charId: string) {
+  const db = fbDb();
+  unsub("mine:");
+  sub("mine:tx", () => onSnapshot(query(collection(db, `characters/${charId}/tx`), orderBy("at", "desc")), (s) => {
+    const tx = s.docs.map((d) => d.data() as { at: number; text: string; amt: number });
+    useStore.setState((st) => ({ data: { ...st.data, chars: st.data.chars.map((c) => (c.id === charId ? { ...c, tx } : c)) }, myTx: tx }));
+  }));
+  sub("mine:notifs", () => onSnapshot(query(collection(db, "notifs"), where("to", "==", charId), orderBy("at", "desc")), (s) => setData({ notifs: s.docs.map((d) => withId<{ id: string; to: string; text: string; link?: { v: string; id?: string }; at: number; read: boolean }>(d)) })));
+  for (const side of ["a", "b"] as const) {
+    sub(`mine:threads:${side}`, () => onSnapshot(query(collection(db, "threads"), where(side, "==", charId)), (s) => {
+      const cur = useStore.getState().data.threads.filter((t) => (side === "a" ? t.a !== charId : t.b !== charId));
+      const mine = s.docs.map((d) => { const t = withId<Thread>(d); const old = useStore.getState().data.threads.find((x) => x.id === t.id); return { ...t, letters: old?.letters ?? [] }; });
+      setData({ threads: [...cur, ...mine] });
+      for (const t of mine) sub(`mine:letters:${t.id}`, () => onSnapshot(query(collection(db, `threads/${t.id}/letters`), orderBy("sentAt")), (ls) => {
+        const letters = ls.docs.map((d) => ({ id: d.id, ...(d.data() as object) })) as unknown as Thread["letters"];
+        useStore.setState((st) => ({ data: { ...st.data, threads: st.data.threads.map((x) => (x.id === t.id ? { ...x, letters } : x)) } }));
+      }));
+    }));
+  }
+}
+
+/** 역극방에 들어가면 메시지와 입력중 상태를 구독해요. 나올 때 해제. */
+export function watchRoom(roomId: string) {
+  const db = fbDb();
+  sub(`room:${roomId}`, () => onSnapshot(query(collection(db, `rooms/${roomId}/messages`), orderBy("at")), (s) => {
+    const messages = s.docs.map((d) => withId<Msg>(d));
+    useStore.setState((st) => ({ data: { ...st.data, rooms: st.data.rooms.map((r) => (r.id === roomId ? { ...r, messages } : r)) } }));
+  }));
+  watchTyping(`room:${roomId}`);
+  return () => { unsub(`room:${roomId}`); unsub(`typing:room:${roomId}`); };
+}
+export function watchDorm(dormId: DormId, stage: number) {
+  const db = fbDb();
+  const key = `${dormId}-${stage}`;
+  sub(`dorm:${key}`, () => onSnapshot(query(collection(db, `dorms/${key}/messages`), orderBy("at")), (s) => {
+    const msgs = s.docs.map((d) => withId<Msg>(d));
+    useStore.setState((st) => ({ data: { ...st.data, dormMsgs: { ...st.data.dormMsgs, [key]: msgs } } }));
+  }, () => { /* 권한 없음(다른 학부) → 조용히 무시 */ }));
+  watchTyping(`dorm:${key}`);
+  return () => { unsub(`dorm:${key}`); unsub(`typing:dorm:${key}`); };
+}
+
+/* ───────── 입력중 표시 ───────── */
+function watchTyping(key: string) {
+  const db = fbDb();
+  sub(`typing:${key}`, () => onSnapshot(doc(db, "typing", key), (s) => {
+    const m = (s.data() ?? {}) as Record<string, number>;
+    useStore.setState((st) => ({ typing: { ...st.typing, [key]: m } }));
+  }));
+}
+const lastTyped = new Map<string, number>();
+/** 3초에 한 번만 서버에 알려요. */
+export function setTyping(key: string, charId: string) {
+  const now = Date.now();
+  if (now - (lastTyped.get(key) ?? 0) < 3000) return;
+  lastTyped.set(key, now);
+  setDoc(doc(fbDb(), "typing", key), { [charId]: now }, { merge: true }).catch(() => {});
+}
+export function clearTyping(key: string, charId: string) {
+  lastTyped.delete(key);
+  setDoc(doc(fbDb(), "typing", key), { [charId]: 0 }, { merge: true }).catch(() => {});
+}
+
+/* ───────── 인증 ───────── */
+export const auth = {
+  signIn: (email: string, password: string) => signInWithEmailAndPassword(fbAuth(), email, password),
+  signUp: async (email: string, password: string) => {
+    const cred = await createUserWithEmailAndPassword(fbAuth(), email, password);
+    await setDoc(doc(fbDb(), "users", cred.user.uid), { email, status: "pending", charId: null, agreedRules: true, createdAt: Date.now() });
+    return cred;
+  },
+  signOut: () => signOut(fbAuth()),
+};
+
+/* ───────── 이미지 ───────── */
+async function upload(path: string, dataUrl: string) {
+  if (!dataUrl.startsWith("data:")) return dataUrl;
+  const r = sref(fbStorage(), path);
+  await uploadString(r, dataUrl, "data_url");
+  return getDownloadURL(r);
+}
+
+/* ───────── 쓰기 (클라이언트 직접) ───────── */
+const me = () => {
+  const s = useStore.getState();
+  const c = s.data.chars.find((x) => x.id === s.session.charId);
+  if (!c) throw new Error("캐릭터가 없어요.");
+  return c;
+};
+const now = () => Date.now();
+
+export const L = {
+  async addPost(text: string, images: string[]) {
+    const m = me(); const db = fbDb(); const id = mkId();
+    const urls = await Promise.all(images.map((src, i) => upload(`posts/${id}/${i}.jpg`, src)));
+    await setDoc(doc(db, "posts", id), { charId: m.id, stage: useStore.getState().data.stage, text, images: urls, at: now(), likes: [] });
+    const mentioned = (text.match(/@(\S+)/g) || []).map((x) => useStore.getState().data.chars.find((c) => c.name.replace(/\s/g, "") === x.slice(1))).filter(Boolean);
+    // 멘션 알림은 서버 트리거가 없으므로 생략(다음 단계).
+    void mentioned;
+  },
+  editPost: (id: string, text: string) => updateDoc(doc(fbDb(), "posts", id), { text, edited: true }),
+  deletePost: (id: string) => deleteDoc(doc(fbDb(), "posts", id)),
+  toggleLike: async (id: string) => {
+    const m = me(); const p = useStore.getState().data.posts.find((p) => p.id === id); if (!p) return;
+    await updateDoc(doc(fbDb(), "posts", id), { likes: p.likes.includes(m.id) ? arrayRemove(m.id) : arrayUnion(m.id) });
+  },
+  async talk(postId: string, text: string) {
+    const m = me(); const db = fbDb();
+    const p = useStore.getState().data.posts.find((p) => p.id === postId); if (!p) throw new Error("글을 찾을 수 없어요.");
+    const roomRef = doc(collection(db, "rooms")); const t = now();
+    const b = writeBatch(db);
+    b.set(roomRef, { members: [p.charId, m.id], source: { postId: p.id, charId: p.charId, stage: p.stage, text: p.text, images: p.images, at: p.at }, status: "open", lastAt: t, lastText: text, read: { [m.id]: t } });
+    b.set(doc(collection(db, `rooms/${roomRef.id}/messages`)), { charId: m.id, stage: useStore.getState().data.stage, text, image: null, at: t });
+    b.set(doc(collection(db, "notifs")), { to: p.charId, text: `${m.name}이(가) 당신의 글에 말을 걸었어요.`, link: { v: "room", id: roomRef.id }, at: t, read: false });
+    await b.commit();
+    return roomRef.id;
+  },
+  async rpSend(roomId: string, text: string, image: string | null) {
+    const m = me(); const db = fbDb(); const t = now();
+    const url = image ? await upload(`rooms/${roomId}/${mkId()}.jpg`, image) : null;
+    const r = useStore.getState().data.rooms.find((r) => r.id === roomId);
+    const b = writeBatch(db);
+    b.set(doc(collection(db, `rooms/${roomId}/messages`)), { charId: m.id, stage: useStore.getState().data.stage, text, image: url, at: t });
+    b.update(doc(db, "rooms", roomId), { lastAt: t, lastText: text || "(이미지)", [`read.${m.id}`]: t });
+    const other = r?.members.find((x) => x !== m.id);
+    if (other) b.set(doc(collection(db, "notifs")), { to: other, text: `${m.name}이(가) 역극에 답했어요.`, link: { v: "room", id: roomId }, at: t, read: false });
+    await b.commit();
+    clearTyping(`room:${roomId}`, m.id);
+  },
+  rpEdit: (roomId: string, msgId: string, text: string) => updateDoc(doc(fbDb(), `rooms/${roomId}/messages`, msgId), { text, edited: true }),
+  rpDone: (roomId: string) => updateDoc(doc(fbDb(), "rooms", roomId), { status: "done" }),
+  rpReopen: (roomId: string) => updateDoc(doc(fbDb(), "rooms", roomId), { status: "open" }),
+  markRoomRead: async (roomId: string) => {
+    const s = useStore.getState(); const m = s.data.chars.find((x) => x.id === s.session.charId);
+    const r = s.data.rooms.find((r) => r.id === roomId);
+    if (!m || !r || !r.members.includes(m.id)) return;
+    if ((r.read?.[m.id] ?? 0) >= r.lastAt) return;
+    await updateDoc(doc(fbDb(), "rooms", roomId), { [`read.${m.id}`]: now() });
+  },
+  async dormSend(dormId: DormId, text: string, image: string | null) {
+    const m = me(); const key = `${dormId}-${useStore.getState().data.stage}`;
+    const url = image ? await upload(`dorms/${key}/${mkId()}.jpg`, image) : null;
+    await addDoc(collection(fbDb(), `dorms/${key}/messages`), { charId: m.id, stage: useStore.getState().data.stage, text, image: url, at: now() });
+    clearTyping(`dorm:${key}`, m.id);
+  },
+  addEvent: (e: Omit<CalEvent, "id">) => addDoc(collection(fbDb(), "events"), e),
+  async saveProfile(stage: Stage, p: Profile) {
+    const m = me();
+    const avatar = p.avatar ? await upload(`characters/${m.id}/${stage}/avatar.jpg`, p.avatar) : p.avatar ?? null;
+    const body = p.body ? await upload(`characters/${m.id}/${stage}/body.jpg`, p.body) : p.body ?? null;
+    await updateDoc(doc(fbDb(), "characters", m.id), { [`profiles.${stage}`]: { ...p, avatar, body } });
+  },
+  markNotif: (id: string) => updateDoc(doc(fbDb(), "notifs", id), { read: true }),
+  markLetterRead: async (threadId: string, idx: number) => {
+    const t = useStore.getState().data.threads.find((t) => t.id === threadId); const l = t?.letters[idx] as (Thread["letters"][number] & { id?: string }) | undefined;
+    if (!t || !l?.id || l.read) return;
+    await updateDoc(doc(fbDb(), `threads/${threadId}/letters`, l.id), { read: true });
+  },
+  saveNotice: (text: string) => setDoc(doc(fbDb(), "settings", "global"), { notice: text ? { text, at: now() } : null }, { merge: true }),
+  addItem: (i: { name: string; price: number; cat: string; stock: number; desc: string }) => setDoc(doc(fbDb(), "items", mkId()), { ...i, limit: 0, icon: "scarf", use: "" }),
+
+  /* ───── 서버 계산 ───── */
+  createCharacter: (c: { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[] }) => call<typeof c, { id: string }>("createCharacter", c).then((r) => r.id),
+  ration: () => call<undefined, { n: number }>("ration").then((r) => r.n),
+  studyStart: (subject: SubjectId, useJokbo: boolean) => call("studyStart", { subject, useJokbo }).then(() => null as string | null),
+  studyFinish: () => call<undefined, StudyResult>("studyFinish"),
+  jobStart: (jobId: string) => call("jobStart", { jobId }).then(() => null as string | null),
+  jobFinish: () => call<undefined, JobResult>("jobFinish"),
+  transfer: (to: string, amt: number, memo: string) => call("transfer", { to, amt, memo }).then(() => null as string | null),
+  buy: (itemId: string) => call<{ itemId: string }, { got: Item }>("buyItem", { itemId }).then((r) => r.got),
+  gift: (itemId: string, to: string, memo: string) => call("giftItem", { itemId, to, memo }).then(() => undefined),
+  openCookie: () => call<{ itemId: string }, { text: string }>("useItem", { itemId: "cookie" }).then((r) => r.text),
+  listenEgg: () => call<{ itemId: string }, { text: string }>("useItem", { itemId: "egg" }).then((r) => r.text),
+  drinkSolis: () => call<{ itemId: string }, { left: number }>("useItem", { itemId: "drink" }).then((r) => r.left),
+  submitExcuse: () => call("useItem", { itemId: "excuse" }).then(() => undefined),
+  enterDorm: (dorm: DormId) => call("useItem", { itemId: "key", dorm }).then(() => undefined),
+  letterNew: (text: string) => call<{ text: string }, { result: "sent" | "lost" }>("letterSend", { text }).then((r) => r.result),
+  letterReply: (threadId: string, text: string) => call<{ threadId: string; text: string }, { result: "sent" }>("letterReply", { threadId, text }).then((r) => r.result),
+  adjust: (charId: string, target: SubjectId | "money", n: number, why: string) => call<unknown, { label: string }>("adminAdjust", { charId, target, n, why }).then((r) => r.label),
+  setStage: (stage: Stage) => call("setStage", { stage }).then(() => undefined),
+  semester: () => call("closeSemester", { post: false }).then(() => undefined),
+  postResults: () => call("closeSemester", { post: true }).then(() => undefined),
+  approveUser: (uid: string, status: MemberUser["status"]) => call("approveUser", { uid, status }).then(() => undefined),
+  seedDefaults: () => call<undefined, { items: number; jobs: number }>("seedDefaults"),
+  async getUser(uid: string) { const s = await getDoc(doc(fbDb(), "users", uid)); return s.data() as MemberUser | undefined; },
+};
+export { serverTimestamp };

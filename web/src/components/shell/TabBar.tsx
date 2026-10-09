@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Home, MoreHorizontal, Rows3, ShoppingBag } from "lucide-react";
+import { Calendar, Home, MoreHorizontal, Rows3, ShoppingBag, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cx, money } from "@/lib/format";
@@ -16,8 +16,12 @@ export const TABS = [
   { href: "/more", label: "더보기", Icon: MoreHorizontal },
 ] as const;
 
+/** 데스크톱 레일에만 보이는 항목. 모바일은 더보기 안에 있어요. */
+const DESKTOP_ONLY = [{ href: "/characters", label: "캐릭터", Icon: Users }] as const;
+
 export function isTabActive(pathname: string, href: string) {
   if (href === "/more") return pathname.startsWith("/more") || pathname === "/join";
+  if (href === "/characters") return pathname === "/characters" || pathname.startsWith("/profile/");
   return pathname === href || pathname.startsWith(href + "/");
 }
 
@@ -26,6 +30,26 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
   const pathname = usePathname();
   const me = useMe();
   const stage = useStore((s) => s.data.stage);
+  const item = (href: string, label: string, Icon: typeof Rows3, desktopOnly = false) => {
+    const on = isTabActive(pathname, href);
+    return (
+      <Link
+        key={href}
+        href={href}
+        aria-current={on ? "page" : undefined}
+        className={cx(
+          "relative flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-full text-[10.5px] transition-colors",
+          "lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3.5 lg:py-2.5 lg:text-[15px]",
+          on ? "bg-gold-soft font-semibold text-gold lg:bg-gold-soft" : "text-muted hover:text-ink lg:hover:bg-sunk/70",
+          desktopOnly && "hidden lg:flex",
+        )}
+      >
+        <Icon size={21} strokeWidth={on ? 2 : 1.6} />
+        <span>{label}</span>
+      </Link>
+    );
+  };
+  const [tl, dorm, cal, shop, more] = TABS;
   return (
     <nav
       aria-label="주 메뉴"
@@ -42,24 +66,12 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
         </Link>
         <span className="lat text-[13px] text-muted">Imperial Academy of Lucerne</span>
       </div>
-      {TABS.map(({ href, label, Icon }) => {
-        const on = isTabActive(pathname, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={on ? "page" : undefined}
-            className={cx(
-              "relative flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-full text-[10.5px] transition-colors",
-              "lg:min-h-0 lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3.5 lg:py-2.5 lg:text-[15px]",
-              on ? "bg-gold-soft font-semibold text-gold lg:bg-gold-soft" : "text-muted hover:text-ink lg:hover:bg-sunk/70",
-            )}
-          >
-            <Icon size={21} strokeWidth={on ? 2 : 1.6} />
-            <span>{label}</span>
-          </Link>
-        );
-      })}
+      {item(tl.href, tl.label, tl.Icon)}
+      {item(dorm.href, dorm.label, dorm.Icon)}
+      {DESKTOP_ONLY.map((d) => item(d.href, d.label, d.Icon, true))}
+      {item(cal.href, cal.label, cal.Icon)}
+      {item(shop.href, shop.label, shop.Icon)}
+      {item(more.href, more.label, more.Icon)}
       {me && (
         <div className="mt-auto hidden lg:block">
           <Link href={`/profile/${me.id}`} className="card-flat flex items-center gap-3 p-3 transition-colors hover:bg-sunk/60">

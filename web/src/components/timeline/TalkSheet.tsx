@@ -29,7 +29,7 @@ export function TalkSheet({ postId }: { postId: string }) {
       </Field>
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>
-        <Button onClick={() => { const t = text.trim(); if (!t) { toast("첫 역극을 써 주세요."); return; } const id = talk(p.id, t); closeSheet(); router.push(`/room/${id}`); }}>역극 시작</Button>
+        <Button onClick={async () => { const t = text.trim(); if (!t) { toast("첫 역극을 써 주세요."); return; } try { const id = await talk(p.id, t); closeSheet(); router.push(`/room/${id}`); } catch (e) { toast((e as Error).message); } }}>역극 시작</Button>
       </SheetActions>
     </>
   );

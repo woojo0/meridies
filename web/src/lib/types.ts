@@ -9,6 +9,7 @@ export interface Profile {
   height: string;
   pers: string;
   text: string;
+  birthday?: string;
   avatar?: string | null;
   body?: string | null;
 }

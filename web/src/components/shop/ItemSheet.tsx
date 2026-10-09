@@ -26,8 +26,8 @@ export function ItemSheet({ id }: { id: string }) {
   const can = me.money >= item.price && item.stock !== 0 && !(item.limit && own >= item.limit);
   const label = me.money < item.price ? "재화가 부족해요" : item.stock === 0 ? "품절" : item.limit && own >= item.limit ? "구매 제한" : "구매하기";
 
-  const doBuy = () => {
-    const got = buy(item.id);
+  const doBuy = async () => {
+    let got: Awaited<ReturnType<typeof buy>>; try { got = await buy(item.id); } catch (e) { toast((e as Error).message); return; }
     if (!got) { toast("구매할 수 없어요."); return; }
     if (item.instant) {
       openSheet(
@@ -100,22 +100,22 @@ export function InvItemSheet({ id }: { id: string }) {
   const n = me.inv[id] || 0;
   const useLabel = USE_LABEL[id];
 
-  const use = () => {
-    switch (id) {
+  const use = async () => {
+    try { switch (id) {
       case "ration": openStudySheet(); return;
       case "jokbo": openStudySheet(true); return;
       case "stamp": closeSheet(); openDrawer("pen"); return;
       case "pigeon": closeSheet(); openDrawer("pen"); return;
-      case "excuse": st.submitExcuse(); closeSheet(); toast("지각사유서를 냈어요. 운영자에게 전달됐어요."); return;
+      case "excuse": await st.submitExcuse(); closeSheet(); toast("지각사유서를 냈어요. 운영자에게 전달됐어요."); return;
       case "cookie": {
-        const f = st.openCookie();
+        const f = await st.openCookie();
         openSheet(<ResultSheet eyebrow="오늘의 운세"><p className="my-4 font-display text-[19px] leading-relaxed">“{f}”</p><p className="text-[13px] text-muted">쿠키에서는 밀가루 맛이 났다.</p></ResultSheet>);
         return;
       }
-      case "egg": openSheet(<ResultSheet eyebrow="정체불명의 알"><p className="my-4 font-display text-[19px] leading-relaxed">{st.listenEgg()}</p></ResultSheet>); return;
-      case "drink": { const left = st.drinkSolis(); closeSheet(); toast(`힘이 솟아요! 오늘 아르바이트 ${left}회 남았어요.`); return; }
+      case "egg": { const h = await st.listenEgg(); openSheet(<ResultSheet eyebrow="정체불명의 알"><p className="my-4 font-display text-[19px] leading-relaxed">{h}</p></ResultSheet>); return; }
+      case "drink": { const left = await st.drinkSolis(); closeSheet(); toast(`힘이 솟아요! 오늘 아르바이트 ${left}회 남았어요.`); return; }
       case "key": openSheet(<KeySheet />); return;
-    }
+    } } catch (e) { toast((e as Error).message); }
   };
 
   return (
@@ -145,7 +145,7 @@ function KeySheet() {
       <SheetTitle sub="24시간 동안 그 학부의 기숙사 역극을 읽고 쓸 수 있어요.">어느 기숙사에 들어갈까요?</SheetTitle>
       <div className="flex flex-col gap-2">
         {DORMS.filter((d) => d.id !== me.dorm).map((d) => (
-          <button key={d.id} onClick={() => { enterDorm(d.id as DormId); closeSheet(); toast(`${d.name} 기숙사에 몰래 들어왔어요.`); router.push("/dorm"); }} className="group flex items-center gap-3 rounded-2xl border border-line bg-bg px-4 py-3 text-left hover:border-gold/60">
+          <button key={d.id} onClick={async () => { try { await enterDorm(d.id as DormId); } catch (e) { toast((e as Error).message); return; } closeSheet(); toast(`${d.name} 기숙사에 몰래 들어왔어요.`); router.push("/dorm"); }} className="group flex items-center gap-3 rounded-2xl border border-line bg-bg px-4 py-3 text-left hover:border-gold/60">
             <Crest id={d.id} size={28} /><span className="font-semibold underline-offset-[3px] group-hover:underline">{d.name}</span>
           </button>
         ))}
@@ -175,9 +175,9 @@ export function GiftSheet({ id }: { id: string }) {
       <Field label="쪽지 (선택)" htmlFor="gf-memo"><Input id="gf-memo" value={memo} onChange={(e) => setMemo(e.target.value)} /></Field>
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>
-        <Button onClick={() => {
+        <Button onClick={async () => {
           if (!to) { toast("받을 캐릭터를 골라 주세요."); return; }
-          gift(id, to, memo.trim()); closeSheet();
+          try { await gift(id, to, memo.trim()); } catch (e) { toast((e as Error).message); return; } closeSheet();
           toast(`${chars.find((c) => c.id === to)?.name}에게 ${item.name}을(를) 보냈어요.`);
         }}><Gift size={18} strokeWidth={1.6} /> 보내기</Button>
       </SheetActions>

@@ -43,8 +43,8 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
         <p className="my-2 mb-3.5 text-center font-display text-[22px]">{done ? "끝났어요" : <><Countdown until={sj.start + STUDY_MS} /> 남음</>}</p>
         <SheetActions>
           {done ? (
-            <Button onClick={() => {
-              const r = studyFinish(); if (!r) return;
+            <Button onClick={async () => {
+              let r: Awaited<ReturnType<typeof studyFinish>>; try { r = await studyFinish(); } catch (e) { toast((e as Error).message); return; } if (!r) return;
               const g0 = gIdx(r.before), g1 = gIdx(r.after);
               openSheet(
                 <ResultSheet
@@ -88,7 +88,7 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
             <button
               key={s.id}
               disabled={disabled}
-              onClick={() => { const err = studyStart(s.id, jokbo); if (err) { toast(err); return; } closeSheet(); toast(`${s.name} 공부를 시작했어요. 1시간 뒤에 끝나요.`); }}
+              onClick={async () => { let err: string | null; try { err = await studyStart(s.id, jokbo); } catch (e) { err = (e as Error).message; } if (err) { toast(err); return; } closeSheet(); toast(`${s.name} 공부를 시작했어요. 1시간 뒤에 끝나요.`); }}
               className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 rounded-2xl border border-line bg-bg px-4 py-3.5 text-left transition-colors enabled:hover:border-gold/60 disabled:opacity-40"
             >
               <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{s.name}</span>
@@ -126,8 +126,8 @@ export function JobSheet() {
         <p className="my-2 mb-3.5 text-center font-display text-[22px]">{done ? "완료할 수 있어요" : <><Countdown until={me.job.start + JOB_MS} /> 남음</>}</p>
         <SheetActions>
           {done ? (
-            <Button onClick={() => {
-              const r = jobFinish(); if (!r) return;
+            <Button onClick={async () => {
+              let r: Awaited<ReturnType<typeof jobFinish>>; try { r = await jobFinish(); } catch (e) { toast((e as Error).message); return; } if (!r) return;
               openSheet(
                 <ResultSheet eyebrow={j.name} big={r.ok ? "성공" : "실패"} bigClass={r.ok ? "text-good" : "text-crit"}>
                   <p>{r.ok ? j.flavorW : j.flavorL}</p>
@@ -155,7 +155,7 @@ export function JobSheet() {
             <button
               key={j.id}
               disabled={left <= 0}
-              onClick={() => { const err = jobStart(j.id); if (err) { toast(err); return; } closeSheet(); toast("아르바이트를 시작했어요. 2시간 뒤에 완료할 수 있어요."); }}
+              onClick={async () => { let err: string | null; try { err = await jobStart(j.id); } catch (e) { err = (e as Error).message; } if (err) { toast(err); return; } closeSheet(); toast("아르바이트를 시작했어요. 2시간 뒤에 완료할 수 있어요."); }}
               className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 rounded-2xl border border-line bg-bg px-4 py-3.5 text-left transition-colors enabled:hover:border-gold/60 disabled:opacity-40"
             >
               <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{j.name}</span>
@@ -204,8 +204,8 @@ export function TransferSheet({ to: initialTo }: { to?: string }) {
       </div>
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>
-        <Button onClick={() => {
-          const err = transfer(to, a, memo.trim());
+        <Button onClick={async () => {
+          let err: string | null; try { err = await transfer(to, a, memo.trim()); } catch (e) { err = (e as Error).message; }
           if (err) { toast(err); return; }
           closeSheet(); toast(`${chars.find((c) => c.id === to)?.name}에게 ${money(recv)}이 도착했어요.`);
         }}>보내기</Button>
