@@ -96,7 +96,7 @@ export function ProfileView({ c: base }: { c: Character }) {
   if (desktop) {
     return (
       <div className="mt-2 grid grid-cols-[790px_minmax(0,1fr)] gap-7">
-        <aside className="sticky top-[80px] self-start">
+        <aside className="self-start">
           <div className="card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
             <div className="relative flex items-end justify-center [&>img]:h-auto [&>img]:w-full [&>img]:max-h-none [&>svg]:min-h-[720px] [&>svg]:w-[min(480px,80%)]"><FullBody c={c} stage={stage} /></div>
@@ -136,9 +136,11 @@ export function ProfileView({ c: base }: { c: Character }) {
           {secretCard}
 
           <Tabs<Tab> className="mt-6" value={tab === "profile" || tab === "body" ? "grades" : tab} onChange={setTab} tabs={[{ k: "grades", l: "성적" }, { k: "inv", l: "인벤토리" }, { k: "rp", l: "역극" }]} />
-          {(tab === "grades" || tab === "profile" || tab === "body") && <GradesPanel c={c} opt={opt} kwG={kwG} />}
-          {tab === "inv" && <InvPanel c={c} mine={mine} items={items} now={now} openSheet={openSheet} />}
-          {tab === "rp" && <div className="card-flat"><RoomList charId={c.id} /></div>}
+          <div className="min-h-[560px]">
+            {(tab === "grades" || tab === "profile" || tab === "body") && <GradesPanel c={c} opt={opt} kwG={kwG} />}
+            {tab === "inv" && <InvPanel c={c} mine={mine} items={items} now={now} openSheet={openSheet} />}
+            {tab === "rp" && <div className="card-flat"><RoomList charId={c.id} /></div>}
+          </div>
         </div>
       </div>
     );
