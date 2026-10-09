@@ -77,6 +77,7 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
     );
   }
 
+  if (me.job) return <BusyWith other="아르바이트" what="공부" until={me.job.start + JOB_MS} done={now - me.job.start >= JOB_MS} open={openJobSheet} />;
   const jk = me.inv.jokbo || 0;
   return (
     <>
@@ -157,6 +158,7 @@ export function JobSheet() {
   }
 
   if (needsStage1Alloc(stage, me)) return <AllocNeeded charId={me.id} what="아르바이트" />;
+  if (me.studyJob) return <BusyWith other="공부" what="아르바이트" until={me.studyJob.start + STUDY_MS} done={now - me.studyJob.start >= STUDY_MS} open={() => openStudySheet()} />;
   const left = jobLeft(me, now);
   return (
     <>
@@ -179,6 +181,21 @@ export function JobSheet() {
           );
         })}
       </div>
+    </>
+  );
+}
+
+/** 공부와 아르바이트는 동시에 못 해요. 다른 쪽이 진행 중이면 안내만. */
+function BusyWith({ other, what, until, done, open }: { other: string; what: string; until: number; done: boolean; open: () => void }) {
+  const closeSheet = useOverlay((s) => s.closeSheet);
+  return (
+    <>
+      <SheetTitle sub={`${other}와(과) ${what}는 동시에 할 수 없어요. ${done ? `${other} 결과를 먼저 확인해 주세요.` : "끝나면 다시 시도해 주세요."}`}>{other} 중이에요</SheetTitle>
+      <p className="my-2 mb-3.5 text-center font-display text-[22px]">{done ? "끝났어요" : <><Countdown until={until} /> 남음</>}</p>
+      <SheetActions>
+        <Button variant="ghost" onClick={closeSheet}>닫기</Button>
+        <Button onClick={open}>{other} 보기</Button>
+      </SheetActions>
     </>
   );
 }

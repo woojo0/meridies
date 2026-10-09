@@ -265,6 +265,7 @@ export const useStore = create<State>()(
             m.study = m.study?.day === day ? m.study : { day, n: 0 };
             if (m.study.n >= STUDY_PER_DAY) { err = "오늘은 더 공부할 수 없어요."; return; }
             if (m.studyJob) { err = "이미 공부 중이에요."; return; }
+            if (m.job) { err = "아르바이트 중에는 공부할 수 없어요. 먼저 완료해 주세요."; return; }
             if (needsStage1Alloc(s.data.stage, m)) { err = "5학년 과목 분배를 먼저 해 주세요. 프로필 수정 → 1차 성장 탭"; return; }
             if (!subjectsFor(s.data.stage, m).some((x) => x.id === subjectId)) { err = "지금 단계에서 듣는 과목이 아니에요."; return; }
             if (subjectId === kwIdFor(s.data.stage, m) && (m.inv.ration || 0) < KW_COST) { err = "광휘 실습에는 배급 솔리스가 필요해요."; return; }
@@ -295,6 +296,7 @@ export const useStore = create<State>()(
           set((s) => {
             const m = mine(s.data); if (!m) return; const now = get().now();
             if (m.job) { err = "이미 아르바이트 중이에요."; return; }
+            if (m.studyJob) { err = "공부 중에는 아르바이트를 할 수 없어요. 먼저 결과를 확인해 주세요."; return; }
             if (needsStage1Alloc(s.data.stage, m)) { err = "5학년 과목 분배를 먼저 해 주세요. 프로필 수정 → 1차 성장 탭"; return; }
             if (!jobsFor(s.data.stage, m, s.data.jobs).some((j) => j.id === jobId)) { err = "지금 단계·과목에 맞는 아르바이트가 아니에요."; return; }
             if (jobLeft(m, now) <= 0) { err = "오늘은 아르바이트를 더 할 수 없어요."; return; }
