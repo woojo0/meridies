@@ -51,7 +51,7 @@ export function CharactersGrid() {
   const list = [...chars].sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
   return (
-    <section ref={wrapRef} className="card relative mt-3 p-5 lg:col-span-full">
+    <section ref={wrapRef} className="card relative mt-3 p-5">
       <div className="mb-1 flex items-baseline justify-between gap-3">
         <h3 className="text-[17px]">캐릭터 관리</h3>
         <span className="text-xs text-muted">{chars.length}명 · 카드를 우클릭하면 메뉴가 열려요</span>
