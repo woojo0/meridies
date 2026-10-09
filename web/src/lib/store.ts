@@ -22,6 +22,8 @@ export type StageProfileIn = { pers?: string; text?: string; detail?: string; av
 export interface NewCharacter { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Partial<Record<"0" | "1" | "2", StageProfileIn>>; secret?: string; private?: PrivateProfile }
 /** 비공개 프로필: 운영자와 본인만. */
 export interface PrivateProfile { secret: string; trigger: string; growthIf: string }
+export interface ChatMsg { id: string; from: "admin" | string; text: string; at: number }
+export interface ChatThread { charId: string; lastText: string; lastAt: number; unreadAdmin: number; unreadChar: number; messages: ChatMsg[] }
 export interface DocEntry { text: string; updatedAt: number; summary?: string }
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
 
@@ -39,6 +41,7 @@ interface State {
   privates: Record<string, PrivateProfile>;
   /** 운영자가 고친 문서(세계관·편람·규칙). 없으면 기본 원문을 써요. */
   docTexts: Record<string, DocEntry>;
+  adminChats: Record<string, ChatThread>;
 
   now: () => number;
   me: () => Character | null;
@@ -108,6 +111,9 @@ interface State {
   deleteCharacter: (charId: string) => Promise<void>;
   saveDoc: (id: string, text: string, summary: string) => Promise<void>;
   adminMessage: (charId: string, text: string) => Promise<void>;
+  openChat: (charId: string) => void;
+  closeChat: (charId: string) => void;
+  sendChat: (charId: string, text: string) => Promise<void>;
   adjust: (charId: string, target: SubjectId | "money", n: number, why: string) => Promise<string>;
 
   shiftTime: (h: number) => void;
@@ -147,6 +153,7 @@ export const useStore = create<State>()(
         secrets: {},
         privates: {},
         docTexts: {},
+        adminChats: {},
 
         now: () => Date.now() + get().shift,
         me: () => get().data.chars.find((c) => c.id === get().session.charId) ?? null,
@@ -377,6 +384,17 @@ export const useStore = create<State>()(
         }); },
         saveNotice: async (text) => { if (LIVE) return L().saveNotice(text); set((s) => { s.data.notice = text ? { text, at: get().now() } : null; }); },
         addItem: async (i) => { if (LIVE) return L().addItem(i); set((s) => { s.data.items.push({ id: uid(), name: i.name, price: i.price, cat: i.cat || "잡화", stock: i.stock, limit: 0, icon: "scarf", desc: i.desc, use: "" }); }); },
+        openChat: (charId) => { if (LIVE) { live().watchChat(charId); return; } set((s) => { const t = s.adminChats[charId]; if (t) { if (s.session.admin) t.unreadAdmin = 0; else t.unreadChar = 0; } }); },
+        closeChat: (charId) => { if (LIVE) live().unwatchChat(charId); },
+        sendChat: async (charId, text) => {
+          if (LIVE) return L().sendChat(charId, text);
+          set((s) => {
+            const t = (s.adminChats[charId] = s.adminChats[charId] ?? { charId, lastText: "", lastAt: 0, unreadAdmin: 0, unreadChar: 0, messages: [] });
+            const from = s.session.admin ? "admin" : charId; const at = get().now();
+            t.messages.push({ id: uid(), from, text, at }); t.lastText = text.slice(0, 80); t.lastAt = at;
+            if (from === "admin") { t.unreadChar++; s.data.notifs.unshift({ id: uid(), to: charId, text: `운영자: ${text.slice(0, 60)}`, link: { v: "inbox" }, at, read: false }); } else t.unreadAdmin++;
+          });
+        },
         adminMessage: async (charId, text) => { if (LIVE) return L().adminMessage(charId, text); set((s) => { s.data.notifs.unshift({ id: uid(), to: charId, text: `운영자: ${text}`, link: { v: "timeline" }, at: get().now(), read: false }); }); },
         saveDoc: async (id, text, summary) => { if (LIVE) return L().saveDoc(id, text, summary); set((s) => { s.docTexts[id] = { text, updatedAt: get().now(), summary }; }); },
         deleteCharacter: async (charId) => { if (LIVE) return L().deleteCharacter(charId); set((s) => { s.data.chars = s.data.chars.filter((c) => c.id !== charId); if (s.session.charId === charId) s.session.charId = s.data.chars[0]?.id ?? null; }); },

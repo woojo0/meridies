@@ -15,7 +15,8 @@ import { seed } from "./seed";
 import { call, fbAuth, fbDb, fbStorage } from "./firebase";
 import { uid as mkId } from "./format";
 import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, SubjectId, Thread } from "./types";
-import { useStore, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
+import { useStore, type ChatMsg, type ChatThread, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
+import { increment } from "firebase/firestore";
 
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
 
@@ -62,8 +63,8 @@ export function startLive() {
       useStore.setState((st) => ({ session: { ...st.session, status, charId: u?.charId ?? null, admin } }));
       const approved = status === "member" || admin;
       if (!approved) { useStore.setState({ hydrated: true }); return; }
-      if (!memberSubscribed) { memberSubscribed = true; subscribeCore(user, admin); }
-      if (u?.charId) subscribeMine(u.charId);
+      if (!memberSubscribed) { memberSubscribed = true; subscribeCore(user, admin); if (admin) subscribeChatHeads(null, true); }
+      if (u?.charId) { subscribeMine(u.charId); if (!admin) subscribeChatHeads(u.charId, false); }
     }, (e) => {
       // 계정 문서가 없거나 못 읽음 → 가입 신청 전 상태로 취급
       useStore.setState((st) => ({ session: { ...st.session, status: null }, hydrated: true, liveError: `계정 정보를 읽지 못했어요: ${(e as Error).message}` }));
@@ -138,6 +139,32 @@ export function watchDorm(dormId: DormId, stage: number) {
   }, () => { /* 권한 없음(다른 학부) → 조용히 무시 */ }));
   watchTyping(`dorm:${key}`);
   return () => { unsub(`dorm:${key}`); unsub(`typing:dorm:${key}`); };
+}
+
+/* ───────── 운영자 문의함 ───────── */
+function chatKey(charId: string) { return `chat:${charId}`; }
+/** 대화 구독 + 읽음 처리. 운영자는 목록도 구독해요. */
+export function watchChat(charId: string) {
+  const db = fbDb();
+  const st = useStore.getState();
+  sub(chatKey(charId), () => onSnapshot(query(collection(db, `adminChats/${charId}/messages`), orderBy("at")), (s) => {
+    const messages = s.docs.map((d) => withId<ChatMsg>(d));
+    useStore.setState((x) => { const prev = x.adminChats[charId]; return { adminChats: { ...x.adminChats, [charId]: { charId, lastText: prev?.lastText ?? "", lastAt: prev?.lastAt ?? 0, unreadAdmin: prev?.unreadAdmin ?? 0, unreadChar: prev?.unreadChar ?? 0, messages } } }; });
+    // 열어 두는 동안 새 메시지가 오면 읽음 유지
+    setDoc(doc(db, "adminChats", charId), st.session.admin ? { unreadAdmin: 0 } : { unreadChar: 0 }, { merge: true }).catch(() => {});
+  }, () => {}));
+}
+export function unwatchChat(charId: string) { unsub(chatKey(charId)); }
+/** 내 대화(멤버) 또는 전체 목록(운영자)의 머리 정보를 구독해요. 로그인 시 자동. */
+function subscribeChatHeads(charId: string | null, admin: boolean) {
+  const db = fbDb();
+  const apply = (docs: { id: string; data: () => unknown }[]) => useStore.setState((x) => {
+    const next = { ...x.adminChats };
+    for (const d of docs) { const h = d.data() as Omit<ChatThread, "charId" | "messages">; next[d.id] = { charId: d.id, messages: next[d.id]?.messages ?? [], ...h }; }
+    return { adminChats: next };
+  });
+  if (admin) sub("chatheads", () => onSnapshot(collection(db, "adminChats"), (s) => apply(s.docs), () => {}));
+  else if (charId) sub("chatheads", () => onSnapshot(doc(db, "adminChats", charId), (s) => { if (s.exists()) apply([s]); }, () => {}));
 }
 
 /** 문서(세계관·편람·규칙) 구독. 비회원도 읽을 수 있어요. 없거나 권한 없으면 기본 원문 사용. */
@@ -306,6 +333,16 @@ export const L = {
   addItem: (i: { name: string; price: number; cat: string; stock: number; desc: string }) => setDoc(doc(fbDb(), "items", mkId()), { ...i, limit: 0, icon: "scarf", use: "" }),
   updateItem: (id: string, patch: Partial<Item>) => updateDoc(doc(fbDb(), "items", id), patch),
   deleteCharacter: (charId: string) => call("deleteCharacter", { charId }).then(() => undefined),
+  async sendChat(charId: string, text: string) {
+    const db = fbDb(); const s = useStore.getState(); const admin = s.session.admin; const at = now();
+    const from = admin ? "admin" : charId;
+    const c = s.data.chars.find((x) => x.id === charId);
+    const b = writeBatch(db);
+    b.set(doc(collection(db, `adminChats/${charId}/messages`)), { from, text: text.slice(0, 1000), at });
+    b.set(doc(db, "adminChats", charId), { charId, charName: c?.name ?? "", lastText: text.slice(0, 80), lastAt: at, ...(admin ? { unreadChar: increment(1), unreadAdmin: 0 } : { unreadAdmin: increment(1), unreadChar: 0 }) }, { merge: true });
+    if (admin) b.set(doc(collection(db, "notifs")), { to: charId, text: `운영자: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`, link: { v: "inbox" }, at, read: false, from: "admin" });
+    await b.commit();
+  },
   adminMessage: (charId: string, text: string) => addDoc(collection(fbDb(), "notifs"), { to: charId, text: `운영자: ${text}`, link: { v: "timeline" }, at: now(), read: false, from: "admin" }).then(() => undefined),
   saveDoc: (id: string, text: string, summary: string) => setDoc(doc(fbDb(), "docs", id), { text, summary, public: true, updatedAt: now() }, { merge: true }),
 

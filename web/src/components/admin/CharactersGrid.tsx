@@ -11,7 +11,7 @@ import { prof, useStore } from "@/lib/store";
 import type { Character } from "@/lib/types";
 import { DormDot } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Empty, Field, Input, Textarea } from "../ui/primitives";
+import { Button, Empty, Field, Input } from "../ui/primitives";
 
 type Menu = { x: number; y: number; c: Character } | null;
 
@@ -112,7 +112,7 @@ export function CharactersGrid() {
           {[
             { l: "프로필 보기", i: <ExternalLink size={15} />, f: () => router.push(`/profile/${menu.c.id}`) },
             { l: "프로필 수정", i: <Pencil size={15} />, f: () => router.push(`/profile/${menu.c.id}/edit`) },
-            { l: "운영자 메시지 보내기", i: <MessageSquare size={15} />, f: () => openSheet(<AdminMessageSheet c={menu.c} />) },
+            { l: "문의함에서 대화", i: <MessageSquare size={15} />, f: () => router.push(`/inbox?c=${menu.c.id}`) },
           ].map((m) => (
             <button key={m.l} role="menuitem" onClick={() => { setMenu(null); m.f(); }} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[14px] hover:bg-sunk">
               <span className="text-muted">{m.i}</span>{m.l}
@@ -125,23 +125,6 @@ export function CharactersGrid() {
         </div>
       )}
     </section>
-  );
-}
-
-function AdminMessageSheet({ c }: { c: Character }) {
-  const adminMessage = useStore((s) => s.adminMessage);
-  const closeSheet = useOverlay((s) => s.closeSheet);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  return (
-    <>
-      <SheetTitle sub="알림으로 전달돼요. 받는 쪽에는 ‘운영자’ 이름으로 보여요.">{c.name}에게 운영자 메시지</SheetTitle>
-      <Field label="내용" htmlFor="am-t"><Textarea id="am-t" className="min-h-[140px]" value={text} onChange={(e) => setText(e.target.value)} /></Field>
-      <SheetActions>
-        <Button variant="ghost" onClick={closeSheet}>취소</Button>
-        <Button disabled={busy || !text.trim()} onClick={async () => { setBusy(true); try { await adminMessage(c.id, text.trim()); closeSheet(); toast("보냈어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "보내는 중…" : "보내기"}</Button>
-      </SheetActions>
-    </>
   );
 }
 

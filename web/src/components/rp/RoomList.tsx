@@ -7,6 +7,8 @@ import { useStore } from "@/lib/store";
 import { Avatar } from "../ui/identity";
 import { Empty, Pill, RowSub, RowTitle, rowCls } from "../ui/primitives";
 
+const preview = (t: string) => { const s = t.replace(/\s+/g, " ").trim(); return s.length > 40 ? s.slice(0, 40) + "…" : s; };
+
 /** 캐릭터의 1:1 역극 목록. 완료된 방은 아래로. 카드 안에 넣어 쓰세요. */
 export function RoomList({ charId, showUnread, onNavigate }: { charId: string; showUnread?: boolean; onNavigate?: () => void }) {
   const now = useNow();
@@ -33,7 +35,7 @@ export function RoomList({ charId, showUnread, onNavigate }: { charId: string; s
               <RowTitle>
                 {o.name} {r.status === "done" && <Pill className="ml-1 align-middle">완료</Pill>}
               </RowTitle>
-              <RowSub>{last ? last.text : (r as { lastText?: string }).lastText ?? r.source.text}</RowSub>
+              <RowSub>{preview(last ? last.text : (r as { lastText?: string }).lastText ?? r.source.text)}</RowSub>
             </span>
             {unread && <span className="size-2 shrink-0 rounded-full bg-crit" aria-label="새 답장" />}
             <span className="shrink-0 text-xs text-muted">{ago(r.lastAt, now)}</span>

@@ -48,6 +48,7 @@ export function AdminView() {
   return (
     <div className="flex flex-col">
       {LIVE && <MembersCard />}
+      <InboxCard />
       <Card title="성장 단계" desc="바꾸면 커뮤 전체의 프로필·두상이 그 단계로 바뀌어요. 이미 쓴 글은 작성 당시 모습을 유지하고, 기숙사 역극방은 새로 열려요.">
         <Segmented
           options={STAGES.map((s, i) => ({ v: i, l: s }))}
@@ -255,6 +256,21 @@ function DocsCard() {
       <div className="flex gap-2">
         <Button size="sm" disabled={busy || text === null} onClick={async () => { setBusy(true); try { await saveDoc(id, value, summary.trim()); setText(null); setSummary(""); toast("문서를 저장했어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "저장 중…" : "저장"}</Button>
         <Button size="sm" variant="ghost" disabled={text === null} onClick={() => setText(null)}>되돌리기</Button>
+      </div>
+    </Card>
+  );
+}
+
+/** 문의함 바로가기: 답장 안 한 대화 수 */
+function InboxCard() {
+  const chats = useStore((s) => s.adminChats);
+  const chars = useStore((s) => s.data.chars);
+  const pending = Object.values(chats).filter((t) => t.unreadAdmin > 0);
+  return (
+    <Card title={`운영자 문의함${pending.length ? ` · 답장 대기 ${pending.length}` : ""}`} desc="멤버와 1:1로 메시지를 주고받아요. 멤버는 캐릭터 메뉴 → 알림 → 운영자 문의함에서 보냅니다.">
+      <div className="flex flex-wrap items-center gap-2">
+        {pending.slice(0, 8).map((t) => <a key={t.charId} href={`/inbox?c=${t.charId}`} className="rounded-full border border-gold/50 bg-gold-soft px-3 py-1 text-[13px] text-gold">{chars.find((c) => c.id === t.charId)?.name ?? "?"} · {t.unreadAdmin}</a>)}
+        <a href="/inbox" className="inline-flex min-h-9 items-center rounded-full border border-line bg-surface px-3.5 text-[13px] font-semibold hover:border-line-strong">문의함 열기</a>
       </div>
     </Card>
   );

@@ -19,6 +19,7 @@ const TITLES: Record<string, string> = {
   "/timeline": "타임라인", "/dorm": "기숙사", "/calendar": "달력", "/shop": "상점", "/more": "더보기", "/characters": "캐릭터",
   "/more/world": "공개 세계관", "/more/handbook": "루체른 생활 편람", "/more/rules": "규칙", "/more/characters": "캐릭터 목록", "/more/admin": "운영자 도구",
   "/join": "캐릭터 등록",
+  "/inbox": "운영자 문의",
 };
 const titleFor = (pathname: string) => TITLES[pathname] ?? (/^\/profile\/[^/]+\/edit$/.test(pathname) ? "프로필 수정" : pathname.startsWith("/profile/") ? "프로필" : pathname.startsWith("/room/") ? "역극" : "");
 
@@ -27,14 +28,15 @@ export function useUnreadCount() {
   const now = useNow();
   const notifs = useStore((s) => s.data.notifs);
   const threads = useStore((s) => s.data.threads);
+  const chatUnread = useStore((s) => (s.session.charId ? s.adminChats[s.session.charId]?.unreadChar ?? 0 : 0));
   return useMemo(() => {
     if (!me) return 0;
-    let n = notifs.filter((x) => x.to === me.id && !x.read).length;
+    let n = notifs.filter((x) => x.to === me.id && !x.read).length + chatUnread;
     n += threads.filter((t) => t.a === me.id || t.b === me.id).reduce((a, t) => a + t.letters.filter((l) => l.from !== me.id && !l.read && l.deliverAt <= now).length, 0);
     if (me.job && now - me.job.start >= JOB_MS) n++;
     if (me.studyJob && now - me.studyJob.start >= STUDY_MS) n++;
     return n;
-  }, [me, now, notifs, threads]);
+  }, [me, now, notifs, threads, chatUnread]);
 }
 
 /** 짧은 알림음 (오디오 파일 없이 WebAudio로). 브라우저 정책상 사용자가 화면을 한 번 누른 뒤에만 소리가 나요. */
@@ -153,7 +155,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const pageTitle = title ?? titleFor(pathname);
   const wide = pathname.startsWith("/profile/") || pathname === "/characters" || pathname === "/join";
   const docWide = ["/more/world", "/more/handbook", "/more/rules"].includes(pathname);
-  const adminWide = pathname === "/more/admin";
+  const adminWide = pathname === "/more/admin" || pathname === "/inbox";
 
   return (
     <div className="app-scale lg:pl-[var(--rail)]">

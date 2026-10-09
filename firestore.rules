@@ -144,6 +144,15 @@ service cloud.firestore {
       allow read, write: if isMember();
     }
 
+    // ───────── 운영자 문의함: 캐릭터별 대화. 본인과 운영자만 ─────────
+    match /adminChats/{charId} {
+      allow read, write: if ownsChar(charId) || isAdmin();
+      match /messages/{msgId} {
+        allow read, create: if ownsChar(charId) || isAdmin();
+        allow update, delete: if isAdmin();
+      }
+    }
+
     // ───────── 알림 ─────────
     match /notifs/{notifId} {
       allow read: if isMember() && resource.data.to == myCharId();
