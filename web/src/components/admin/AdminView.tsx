@@ -14,6 +14,7 @@ import { Crest } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
 import { Button, Empty, Field, Input, Segmented, Textarea } from "../ui/primitives";
 import { Dropdown } from "../ui/Dropdown";
+import { CharactersGrid } from "./CharactersGrid";
 import { ItemIcon } from "../ui/ItemIcon";
 import { money } from "@/lib/format";
 import type { Item } from "@/lib/types";
@@ -107,8 +108,8 @@ export function AdminView() {
       </Card>
 
       <ShopCard />
-      <CharactersCard />
       <DocsCard />
+      <CharactersGrid />
       <Card title="학부" desc="학부 배정은 플레이어가 프로필을 쓸 때 직접 고르고, 기숙사 배정도 그 선택을 따라요.">
         <div className="grid grid-cols-5 gap-1.5">
           {DORMS.map((d) => (
@@ -226,46 +227,6 @@ function EditItemSheet({ id }: { id: string }) {
           setBusy(true);
           try { await updateItem(id, patch); closeSheet(); toast("아이템을 고쳤어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
         }}>{busy ? "저장 중…" : "저장"}</Button>
-      </SheetActions>
-    </>
-  );
-}
-
-/** 캐릭터 관리: 프로필 열기·수정, 삭제. */
-function CharactersCard() {
-  const chars = useStore((s) => s.data.chars);
-  const openSheet = useOverlay((s) => s.openSheet);
-  return (
-    <Card title="캐릭터 관리" desc="삭제하면 캐릭터·성적·재화·비밀 설정이 지워지고, 그 계정은 캐릭터를 다시 등록할 수 있어요. 타임라인 글과 역극 기록은 남아요.">
-      <div className="divide-y divide-line">
-        {chars.map((c) => (
-          <div key={c.id} className="flex items-center gap-3 py-2.5 text-sm">
-            <span className="min-w-0 flex-1">
-              <a href={`/profile/${c.id}`} className="block truncate font-semibold underline-offset-[3px] hover:underline">{c.name}</a>
-              <span className="block truncate text-xs text-muted">{dormOf(c.dorm).name} · {money(c.money)}</span>
-            </span>
-            <a href={`/profile/${c.id}/edit`} className="text-xs text-muted underline-offset-2 hover:underline">수정</a>
-            <Button size="sm" variant="ghost" className="text-crit" onClick={() => openSheet(<DeleteCharSheet id={c.id} name={c.name} />)}>삭제</Button>
-          </div>
-        ))}
-        {!chars.length && <Empty className="py-2 text-left">아직 캐릭터가 없어요.</Empty>}
-      </div>
-    </Card>
-  );
-}
-
-function DeleteCharSheet({ id, name }: { id: string; name: string }) {
-  const deleteCharacter = useStore((s) => s.deleteCharacter);
-  const closeSheet = useOverlay((s) => s.closeSheet);
-  const [typed, setTyped] = useState("");
-  const [busy, setBusy] = useState(false);
-  return (
-    <>
-      <SheetTitle sub="되돌릴 수 없어요. 확인을 위해 캐릭터 이름을 그대로 입력해 주세요.">{name} 삭제</SheetTitle>
-      <Field label="캐릭터 이름" htmlFor="dc-n"><Input id="dc-n" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={name} /></Field>
-      <SheetActions>
-        <Button variant="ghost" onClick={closeSheet}>취소</Button>
-        <Button variant="ink" disabled={typed.trim() !== name || busy} onClick={async () => { setBusy(true); try { await deleteCharacter(id); closeSheet(); toast(`${name}을(를) 삭제했어요.`); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "삭제 중…" : "삭제하기"}</Button>
       </SheetActions>
     </>
   );

@@ -290,6 +290,7 @@ export const L = {
   addItem: (i: { name: string; price: number; cat: string; stock: number; desc: string }) => setDoc(doc(fbDb(), "items", mkId()), { ...i, limit: 0, icon: "scarf", use: "" }),
   updateItem: (id: string, patch: Partial<Item>) => updateDoc(doc(fbDb(), "items", id), patch),
   deleteCharacter: (charId: string) => call("deleteCharacter", { charId }).then(() => undefined),
+  adminMessage: (charId: string, text: string) => addDoc(collection(fbDb(), "notifs"), { to: charId, text: `운영자: ${text}`, link: { v: "timeline" }, at: now(), read: false, from: "admin" }).then(() => undefined),
   saveDoc: (id: string, text: string, summary: string) => setDoc(doc(fbDb(), "docs", id), { text, summary, public: true, updatedAt: now() }, { merge: true }),
 
   /* ───── 서버 계산 ───── */

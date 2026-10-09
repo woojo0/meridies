@@ -99,6 +99,7 @@ interface State {
   updateItem: (id: string, patch: Partial<Item>) => Promise<void>;
   deleteCharacter: (charId: string) => Promise<void>;
   saveDoc: (id: string, text: string, summary: string) => Promise<void>;
+  adminMessage: (charId: string, text: string) => Promise<void>;
   adjust: (charId: string, target: SubjectId | "money", n: number, why: string) => Promise<string>;
 
   shiftTime: (h: number) => void;
@@ -361,6 +362,7 @@ export const useStore = create<State>()(
         }); },
         saveNotice: async (text) => { if (LIVE) return L().saveNotice(text); set((s) => { s.data.notice = text ? { text, at: get().now() } : null; }); },
         addItem: async (i) => { if (LIVE) return L().addItem(i); set((s) => { s.data.items.push({ id: uid(), name: i.name, price: i.price, cat: i.cat || "잡화", stock: i.stock, limit: 0, icon: "scarf", desc: i.desc, use: "" }); }); },
+        adminMessage: async (charId, text) => { if (LIVE) return L().adminMessage(charId, text); set((s) => { s.data.notifs.unshift({ id: uid(), to: charId, text: `운영자: ${text}`, link: { v: "timeline" }, at: get().now(), read: false }); }); },
         saveDoc: async (id, text, summary) => { if (LIVE) return L().saveDoc(id, text, summary); set((s) => { s.docTexts[id] = { text, updatedAt: get().now(), summary }; }); },
         deleteCharacter: async (charId) => { if (LIVE) return L().deleteCharacter(charId); set((s) => { s.data.chars = s.data.chars.filter((c) => c.id !== charId); if (s.session.charId === charId) s.session.charId = s.data.chars[0]?.id ?? null; }); },
         updateItem: async (id, patch) => { if (LIVE) return L().updateItem(id, patch); set((s) => { const i = s.data.items.find((x) => x.id === id); if (i) Object.assign(i, patch); }); },

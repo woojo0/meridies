@@ -143,7 +143,8 @@ service cloud.firestore {
     match /notifs/{notifId} {
       allow read: if isMember() && resource.data.to == myCharId();
       allow update: if isMember() && resource.data.to == myCharId() && unchanged(['to', 'text', 'link', 'at']);
-      allow create, delete: if false;
+      allow create: if isAdmin();
+      allow delete: if false;
     }
 
     // ───────── 운영자가 쓰고 멤버가 읽는 것 ─────────
