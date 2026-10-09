@@ -96,7 +96,7 @@ export function ProfileView({ c: base }: { c: Character }) {
   ];
   const detailBlock = p.detail?.trim() ? (
     <section className="card mt-4 p-6 lg:p-8">
-      <span className="eyebrow">기타</span>
+      <span className="block font-display text-[16px] font-semibold">기타</span>
       <div className="mt-3 text-[15px]"><Markdown text={p.detail} /></div>
     </section>
   ) : null;
@@ -147,7 +147,7 @@ export function ProfileView({ c: base }: { c: Character }) {
             </div>
             {(p.pers || keywordChips) && (
               <div className="relative mt-5 border-t border-line pt-5">
-                <span className="eyebrow">성격</span>
+                <span className="block font-display text-[16px] font-semibold">성격</span>
                 {keywordChips}
                 {p.pers && <div className="mt-3 text-[15px]"><Markdown text={p.pers} /></div>}
               </div>
@@ -210,7 +210,7 @@ export function ProfileView({ c: base }: { c: Character }) {
             </dl>
             {(p.pers || keywordChips) && (
               <div className="border-t border-line pt-4">
-                <span className="eyebrow">성격</span>
+                <span className="block font-display text-[16px] font-semibold">성격</span>
                 {keywordChips}
                 {p.pers && <div className="mt-3 text-[15px]"><Markdown text={p.pers} /></div>}
               </div>
@@ -315,7 +315,7 @@ function SecretCard({ charId }: { charId: string }) {
   const rows: [string, string][] = [["트리거 요소", pv.trigger], ["비밀 설정", pv.secret], ["성장 IF", pv.growthIf]];
   return (
     <section className="card mt-4 border-dashed p-6 lg:p-8">
-      <span className="eyebrow">비공개 프로필 · 본인과 운영자만 볼 수 있어요</span>
+      <span className="block font-display text-[16px] font-semibold">비공개 프로필 <span className="ml-1 font-body text-xs font-normal text-muted">본인과 운영자만 볼 수 있어요</span></span>
       <div className="mt-3 flex flex-col gap-5">
         {rows.filter(([, v]) => v.trim()).map(([k, v]) => (
           <div key={k}>
