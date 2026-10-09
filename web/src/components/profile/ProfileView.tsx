@@ -80,7 +80,7 @@ export function ProfileView({ c: base }: { c: Character }) {
   const inlineBits = [p.gender, p.height, p.birthday].filter(Boolean);
   const nameLine = (
     <div className="flex flex-wrap items-baseline gap-x-2.5">
-      <h1 className="font-display text-[32px] leading-tight tracking-[.06em] max-lg:text-[26px]">{c.name}</h1>
+      <h1 className="font-display leading-tight tracking-[.06em] max-lg:text-[26px]" style={desktop ? { fontSize: p.nameSize ?? 32 } : undefined}>{c.name}</h1>
       {p.nameLatin && <span className="lat text-[18px] text-muted">{p.nameLatin}</span>}
       {p.nameNative && <span className="text-[15px] text-muted">{p.nameNative}</span>}
     </div>
@@ -111,6 +111,12 @@ export function ProfileView({ c: base }: { c: Character }) {
         <aside className="self-start">
           <div className="card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
+            {(p.catchphrase || p.quote) && (
+              <div className="relative mb-4 text-center">
+                {p.catchphrase && <span className="eyebrow block">[ {p.catchphrase} ]</span>}
+                {p.quote && <p className="mt-1.5 font-display text-[24px] leading-snug text-ink/90"><span className="text-gold">“</span> {p.quote} <span className="text-gold">”</span></p>}
+              </div>
+            )}
             <div className="relative flex items-end justify-center [&>img]:h-auto [&>img]:w-full [&>img]:max-h-none [&>svg]:min-h-[720px] [&>svg]:w-[min(480px,80%)]"><FullBody c={c} stage={stage} /></div>
             <div className="relative mt-4 border-t border-line pt-4">
               <div className="flex items-center gap-2"><DormTag c={c} stage={stage} /><Pill tone="gold">{STAGES[prof(c, stage).stage]}</Pill>{mine && <Pill tone="ink">내 캐릭터</Pill>}</div>
@@ -132,9 +138,7 @@ export function ProfileView({ c: base }: { c: Character }) {
             <div className="relative flex items-start gap-6">
               <span className="shrink-0 rounded-full p-[3px] ring-1 ring-line"><Avatar c={c} stage={stage} size="xl" className="size-[104px]" /></span>
               <div className="min-w-0 flex-1">
-                {catchLine}
                 {nameLine}
-                {quoteLine}
                 {inlineBits.length > 0 && <div className="mt-2 flex flex-wrap gap-x-2 text-[14px] text-muted">{inlineBits.map((b, i) => <span key={i}>{i > 0 && <span className="mr-2 opacity-50">·</span>}{b}</span>)}</div>}
                 <dl className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[14.5px]">
                   {kvRows.map(([k, v]) => (<div key={k} className="contents"><dt className="text-[12px] tracking-[.06em] text-muted">{k}</dt><dd className="m-0">{v}</dd></div>))}

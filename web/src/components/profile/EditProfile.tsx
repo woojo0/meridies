@@ -10,6 +10,7 @@ import type { Character, Profile, Stage } from "@/lib/types";
 import { Markdown } from "../ui/Markdown";
 import { Button, Chip, ChipRow, Empty, Field, Input, Note, SectionHead, Textarea } from "../ui/primitives";
 import { ImagePick, KeywordsInput } from "./formBits";
+import { Dropdown } from "../ui/Dropdown";
 
 /** 프로필 수정 페이지: /profile/[id]/edit?stage=N. 본인(또는 운영자)만. */
 export function EditProfile() {
@@ -105,7 +106,12 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
 
         <SectionHead title="기본 정보" />
         <div className="card p-5 pb-1">
-          <Field label="이름 (국문)" htmlFor="pf-name" hint="모든 단계에 같이 적용돼요. 1~20자"><Input id="pf-name" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <div className="grid grid-cols-[minmax(0,1fr)_200px] gap-x-3">
+            <Field label="이름 (국문)" htmlFor="pf-name" hint="모든 단계에 같이 적용돼요. 1~20자"><Input id="pf-name" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+            <Field label="이름 글자 크기 (PC)" htmlFor="pf-ns" hint="긴 이름은 작게">
+              <Dropdown id="pf-ns" value={String(p.nameSize ?? 32)} onChange={(v) => setP((x) => ({ ...x, nameSize: Number(v) }))} options={[{ v: "22", l: "아주 작게 · 22px" }, { v: "26", l: "작게 · 26px" }, { v: "32", l: "보통 · 32px" }, { v: "40", l: "크게 · 40px" }, { v: "48", l: "아주 크게 · 48px" }]} />
+            </Field>
+          </div>
           <div className="grid grid-cols-2 gap-x-3">
             <Field label="영문 이름" htmlFor="pf-nl"><Input id="pf-nl" value={p.nameLatin ?? ""} onChange={set("nameLatin")} /></Field>
             <Field label="모국어 이름 (선택)" htmlFor="pf-nn"><Input id="pf-nn" value={p.nameNative ?? ""} onChange={set("nameNative")} /></Field>

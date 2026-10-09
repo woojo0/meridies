@@ -18,7 +18,7 @@ export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, n
 export interface StudyResult { subject: SubjectId; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
 export interface JobResult { jobId: string; ok: boolean; amt: number; rate: number; grade: number }
 export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null }
-export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null; quote?: string; catchphrase?: string; nameLatin?: string; nameNative?: string; keywords?: string[] };
+export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null; quote?: string; catchphrase?: string; nameLatin?: string; nameNative?: string; keywords?: string[]; nameSize?: number };
 export interface NewCharacter { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Partial<Record<"0" | "1" | "2", StageProfileIn>>; secret?: string; private?: PrivateProfile }
 /** 비공개 프로필: 운영자와 본인만. */
 export interface PrivateProfile { secret: string; trigger: string; growthIf: string }

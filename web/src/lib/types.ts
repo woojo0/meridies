@@ -21,6 +21,8 @@ export interface Profile {
   nameNative?: string;
   /** 성격 키워드 */
   keywords?: string[];
+  /** PC 프로필 이름 글자 크기(px). 긴 이름은 작게 */
+  nameSize?: number;
   /** 직접 추가하는 항목 (예: 포지션, 직업, 좋아하는 것) */
   extra?: { k: string; v: string }[];
   /** 세부 정보 (마크다운) */
