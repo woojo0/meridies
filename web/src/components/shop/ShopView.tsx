@@ -21,11 +21,9 @@ export function ShopView() {
   const list = items.filter((i) => cat === "전체" || i.cat === cat);
   return (
     <>
-      <div className="sticky top-[62px] z-10 -mx-4 mb-3 bg-bg/85 px-4 pb-2 pt-1 backdrop-blur-xl lg:-mx-8 lg:px-8">
-        <div className="card flex items-center justify-between px-4 py-3">
-          <span className="text-sm text-muted">{me.name}의 지갑</span>
-          <b className="font-display text-lg tnum">{money(me.money)}</b>
-        </div>
+      <div className="mt-2 mb-2 flex items-center justify-between rounded-full border border-line bg-surface px-4 py-2 text-[13px]">
+        <span className="text-muted">{me.name}의 지갑</span>
+        <b className="tnum font-semibold">{money(me.money)}</b>
       </div>
       <ChipRow>{cats.map((c) => <Chip key={c} on={cat === c} onClick={() => setShopCat(c)}>{c}</Chip>)}</ChipRow>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
