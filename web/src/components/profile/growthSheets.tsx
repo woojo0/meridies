@@ -5,6 +5,7 @@ import { useState } from "react";
 import { GRADES, JOB_MS, JOKBO, KW_COST, STUDY_MS, STUDY_PER_DAY, TRANSFER_FEE, TRANSFER_MIN } from "@/lib/constants";
 import { jobsFor, kwIdFor, needsStage1Alloc, scoresFor, subjectName, subjectsFor } from "@/lib/curriculum";
 import Link from "next/link";
+import { LIVE } from "@/lib/firebase";
 import { fmtDur, gIdx, money } from "@/lib/format";
 import { useMe, useTick } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
@@ -69,7 +70,7 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
               );
             }}>결과 보기</Button>
           ) : (
-            <Button variant="ghost" onClick={() => { shiftTime(1); toast("시간을 1시간 앞으로 감았어요."); }}>시간 +1시간 (데모)</Button>
+            LIVE ? <Button variant="ghost" onClick={closeSheet}>닫기</Button> : <Button variant="ghost" onClick={() => { shiftTime(1); toast("시간을 1시간 앞으로 감았어요."); }}>시간 +1시간 (데모)</Button>
           )}
         </SheetActions>
       </>
@@ -148,7 +149,7 @@ export function JobSheet() {
               );
             }}>완료하고 보상 받기</Button>
           ) : (
-            <Button variant="ghost" onClick={() => { shiftTime(2); toast("시간을 2시간 앞으로 감았어요."); }}>시간 +2시간 (데모)</Button>
+            LIVE ? <Button variant="ghost" onClick={closeSheet}>닫기</Button> : <Button variant="ghost" onClick={() => { shiftTime(2); toast("시간을 2시간 앞으로 감았어요."); }}>시간 +2시간 (데모)</Button>
           )}
         </SheetActions>
       </>

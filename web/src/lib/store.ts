@@ -437,7 +437,7 @@ export const useStore = create<State>()(
           return label;
         },
 
-        shiftTime: (h) => set((s) => { s.shift += h * H; }),
+        shiftTime: (h) => { if (LIVE) return; set((s) => { s.shift += h * H; }); },
         reset: () => set((s) => { s.data = seed(); s.shift = 0; s.ui = todayUI(); s.session = emptySession(); }),
       };
     }),
