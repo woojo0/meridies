@@ -21,10 +21,11 @@ export function ShopView() {
   const list = items.filter((i) => cat === "전체" || i.cat === cat);
   return (
     <>
-      <div className="mt-2 mb-2 flex items-center justify-between rounded-full border border-line bg-surface px-4 py-2 text-[13px]">
+      <div className="mt-2 flex items-center justify-between rounded-full border border-line bg-surface px-4 py-2 text-[13px]">
         <span className="text-muted">{me.name}의 지갑</span>
         <b className="tnum font-semibold">{money(me.money)}</b>
       </div>
+      <p className="mb-2 mt-1.5 pr-2 text-right text-[11.5px] text-muted">1탈러 = 20그로셴 · 인벤토리의 모든 아이템은 다른 캐릭터에게 선물할 수 있어요.</p>
       <ChipRow>{cats.map((c) => <Chip key={c} on={cat === c} onClick={() => setShopCat(c)}>{c}</Chip>)}</ChipRow>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {list.map((i) => (
@@ -37,7 +38,6 @@ export function ShopView() {
           </button>
         ))}
       </div>
-      <p className="mt-10 px-3 pb-2 text-[12.5px] leading-relaxed text-muted">1탈러 = 20그로셴. 인벤토리의 모든 아이템은 다른 캐릭터에게 선물할 수 있어요.</p>
     </>
   );
 }
