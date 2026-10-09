@@ -33,8 +33,7 @@ export function Landing() {
         <p className="lat mt-1 text-[22px] text-[#C9AB7A] lg:text-[26px]">Meridies — Imperial Academy of Lucerne</p>
         <p className="mt-7 max-w-[34rem] text-[15.5px] leading-[1.8] text-[#EDE6D6]/80 lg:text-[17px]">
           당신들이 태어난 해, 정오에 해가 졌습니다. 그날 이후 여름은 사라졌고, 빛은 병에 담겨 배급됩니다.
-          아우렐 제국 유일의 마법 학교 루체른에 입학하는 열한 살 아이들의 이야기. 타임라인에서 시작되는 역극과
-          성적·재화·성장을 한곳에서 굴리는 자캐 커뮤니티입니다.
+          아우렐 제국 유일의 마법 학교 루체른에 입학하는 열한 살 아이들의 이야기.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <EnterButton />
@@ -75,7 +74,7 @@ export function Landing() {
 
       {/* ── 하단 ── */}
       <footer className="mx-auto flex max-w-[1080px] flex-col items-start gap-4 border-t border-[#EDE6D6]/12 px-5 py-10 text-[13px] text-[#EDE6D6]/55 sm:flex-row sm:items-center sm:justify-between lg:px-10">
-        <span className="flex items-center gap-2"><Eclipse size={18} /> 메리디에스 · 활동 인원 20명 안팎의 비공개 커뮤니티</span>
+        <span className="flex items-center gap-2"><Eclipse size={18} /> 메리디에스 <span className="lat ml-1 text-[#EDE6D6]/40">Meridies</span></span>
         <span className="flex gap-4">
           <Link href="/world" className="hover:text-[#EDE6D6]">공개 세계관</Link>
           <Link href="/rules" className="hover:text-[#EDE6D6]">규칙</Link>

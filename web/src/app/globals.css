@@ -148,7 +148,8 @@
   --breakpoint-lg: 900px;
 }
 
-/* ───────────── 베이스 ───────────── */
+/* ───────────── 베이스 (layer에 넣어 유틸리티가 이기게) ───────────── */
+@layer base {
 * { box-sizing: border-box; }
 html { scroll-padding-top: 80px; -webkit-text-size-adjust: 100%; }
 body {
@@ -190,6 +191,7 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+}
 
 /* 데스크톱에서는 전체 UI를 한 단계 작게 (모바일 비율은 그대로) */
 @media (min-width: 900px) {
@@ -227,6 +229,7 @@ p { margin: 0; }
   line-height: 1.8;
 }
 
+@layer components {
 .jimun { color: var(--muted); }
 
 /* 입력창 */
@@ -302,6 +305,7 @@ textarea.field-input { resize: vertical; min-height: 110px; line-height: 1.6; }
 .doc ul, .doc ol { margin: 0 0 12px; padding-left: 20px; max-width: 65ch; }
 .doc li { margin-bottom: 6px; }
 .doc .lead { color: var(--muted); font-size: 14px; border-left: 2px solid var(--gold); padding-left: 12px; }
+}
 
 /* 랜딩 */
 .landing-grain {
