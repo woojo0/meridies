@@ -107,7 +107,7 @@ export function ProfileView({ c: base }: { c: Character }) {
   /* ───────── 데스크톱: 왼쪽 전신, 오른쪽 두상+프로필 카드, 아래 기타 정보 ───────── */
   if (desktop) {
     return (
-      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_460px] gap-7">
+      <div className="mt-2 grid grid-cols-1 gap-7 xl:grid-cols-[minmax(0,1fr)_460px]">
         <aside className="self-start">
           <div className="card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
@@ -117,7 +117,7 @@ export function ProfileView({ c: base }: { c: Character }) {
                 {p.quote && <p className="mt-1.5 font-display text-[24px] leading-snug text-ink/90"><span className="text-gold">“</span> {p.quote} <span className="text-gold">”</span></p>}
               </div>
             )}
-            <div className="relative flex items-end justify-center [&>img]:h-auto [&>img]:w-full [&>img]:max-h-none [&>svg]:min-h-[720px] [&>svg]:w-[min(480px,80%)]"><FullBody c={c} stage={stage} /></div>
+            <div className="relative flex items-end justify-center [&>img]:mx-auto [&>img]:h-auto [&>img]:max-h-[82vh] [&>img]:w-auto [&>svg]:min-h-[520px] [&>svg]:w-[min(420px,70%)] xl:[&>img]:max-h-none xl:[&>img]:w-full xl:[&>svg]:min-h-[720px] xl:[&>svg]:w-[min(480px,80%)]"><FullBody c={c} stage={stage} /></div>
             <div className="relative mt-4 border-t border-line pt-4">
               <div className="flex items-center gap-2"><DormTag c={c} stage={stage} /><Pill tone="gold">{STAGES[prof(c, stage).stage]}</Pill>{mine && <Pill tone="ink">내 캐릭터</Pill>}</div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
