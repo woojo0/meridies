@@ -94,7 +94,7 @@ function subscribeCore(user: User, admin: boolean) {
   sub("jobs", () => onSnapshot(collection(db, "jobs"), (s) => setData({ jobs: s.docs.map((d) => withId<Job>(d)) }), fail("아르바이트")));
   if (admin) {
     sub("adminLog", () => onSnapshot(query(collection(db, "adminLog"), orderBy("at", "desc")), (s) => setData({ adminLog: s.docs.map((d) => d.data() as { at: number; text: string }) }), () => {}));
-    sub("users", () => onSnapshot(collection(db, "users"), (s) => useStore.setState({ users: s.docs.map((d) => withId<MemberUser>(d)) }), () => {}));
+    sub("users", () => onSnapshot(collection(db, "users"), (s) => useStore.setState({ users: s.docs.map((d) => ({ ...(d.data() as Omit<MemberUser, "uid">), uid: d.id })) }), () => {}));
   }
 }
 
