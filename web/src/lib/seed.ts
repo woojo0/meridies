@@ -1,4 +1,5 @@
 import { H, SUBJECTS } from "./constants";
+import { JOBS1 } from "./curriculum";
 import { addDays, uid, ymd } from "./format";
 import type { CalEvent, CatId, Character, Data, Item, Job, Post, Profile, Room, SubjectId, Thread } from "./types";
 
@@ -135,7 +136,7 @@ export function seed(): Data {
   const N = [35, 50, 65, 80, 93];
   const D = [10, 25, 45, 68, 88];
   const job = (id: string, name: string, subject: SubjectId, desc: string, rates: number[], win: [number, number], lose: [number, number], flavorW: string, flavorL: string): Job => ({
-    id, name, subject, desc, rates, win, lose, flavorW, flavorL,
+    id, name, subject, desc, rates, win, lose, flavorW, flavorL, stage: 0,
   });
   const jobs: Job[] = [
     job("j-kw", "솔리스 램프 점검", "kw", "램프 잔량을 흔들어 가늠하고 기록한다. 실기 등급이 그대로 드러나는, 아무나 못 하는 일.", [5, 15, 30, 50, 75], [35, 50], [0, 2], "잔량 기록이 사감 장부와 정확히 맞았다.", "병 하나를 빈 것으로 잘못 적었다."),
@@ -147,6 +148,7 @@ export function seed(): Data {
     job("j-et", "만찬 식탁 차리기", "et", "학부 만찬의 식기와 자리를 격식대로 놓는다. 포크 하나의 방향도 예법이다.", E, [7, 12], [1, 3], "사감이 식탁을 한 바퀴 돌고 아무 말도 하지 않았다. 칭찬이다.", "나이프를 전부 반대로 놓았다."),
     job("j-pe", "옛 창고 지구 정리", "pe", "관리인 요제프 그로프 씨의 왕국. 벌점 노역과 같은 일을 돈 받고 한다.", D, [14, 22], [0, 1], "그로프 씨가 처음으로 이름을 불러 주었다.", "그로프 씨가 말없이 상자를 다시 쌓았다."),
     job("j-ar", "회랑 습작 걸기", "ar", "학기 습작을 회랑에 거는 일. 비뚤게 걸면 다시.", N, [9, 14], [0, 2], "걸어 둔 그림 앞에 사람들이 멈췄다.", "액자 셋이 비뚤었다."),
+    ...JOBS1,
   ];
 
   return {

@@ -3,6 +3,7 @@
 import { FlaskConical } from "lucide-react";
 import { useState } from "react";
 import { GRADES, RATION } from "@/lib/constants";
+import { kwIdFor, scoresFor } from "@/lib/curriculum";
 import { gIdx } from "@/lib/format";
 import { useMe, useNow } from "@/lib/hooks";
 import { toast } from "@/lib/overlay";
@@ -13,10 +14,11 @@ export function SunStrip() {
   const me = useMe();
   const now = useNow();
   const ration = useStore((s) => s.ration);
+  const stage = useStore((s) => s.data.stage);
   const [busy, setBusy] = useState(false);
   if (!me) return null;
   const got = rationToday(me, now);
-  const g = gIdx(me.scores.kw);
+  const g = gIdx(scoresFor(stage, me)[kwIdFor(stage, me)] ?? 0);
   const amt = RATION[g];
   const d = new Date(now);
   const hour = d.getHours() + d.getMinutes() / 60;

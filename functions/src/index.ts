@@ -11,6 +11,7 @@ import {
   DORMS, FORTUNES, GRADES, H, HEARTS, ITEMS, JOBS, JOB_MS, JOB_PER_DAY, JOKBO, KW_COST, KW_MAX_ALLOC, LETTER_MS, LOST_LETTER_RATE,
   RARE_DOLL_RATE, RATION, START_MONEY, STAGES, STUDY_MS, STUDY_PER_DAY, SUBJECTS, TOTAL_ALLOC, TRANSFER_FEE, TRANSFER_MIN, type SubjectId,
 } from "./data";
+import { DROPPED_AT_1, ELECTIVE_MIN, JOBS1, SUBJECTS1, materializeStage1, type Stage1Plan } from "./curriculum";
 
 initializeApp();
 const db = getFirestore();
@@ -33,7 +34,7 @@ const bad = (msg: string) => new HttpsError("failed-precondition", msg);
 
 interface Char {
   id: string; name: string; dorm: string; ownerUid: string; money: number; inv: Record<string, number>;
-  scores: Record<SubjectId, number>; profiles: Record<string, unknown>;
+  scores: Record<SubjectId, number>; scores1?: Record<string, number>; electives1?: string[]; alloc1?: Stage1Plan; profiles: Record<string, unknown>;
   study?: { day: string; n: number }; studyJob?: { subject: SubjectId; start: number; jokbo: boolean } | null;
   job?: { id: string; start: number } | null; jobDay?: { day: string; n: number; bonus: number };
   ration?: { day: string }; bought?: Record<string, number>; visit?: { dorm: string; until: number } | null;
@@ -74,6 +75,22 @@ async function itemById(id: string) {
   return { id, ...(s.data() as Record<string, unknown>) } as { id: string; name: string; price: number; stock: number; limit: number; qty?: number; instant?: boolean; cat: string; desc: string };
 }
 
+/* ───────── 단계별 과목 ───────── */
+async function communityStage(tx?: Transaction) {
+  const ref = db.doc("settings/global");
+  const snap = tx ? await tx.get(ref) : await ref.get();
+  return Number(snap.data()?.stage ?? 0);
+}
+type SubjInfo = { id: string; name: string; max?: number };
+/** 캐릭터가 지금 단계에서 듣는 과목과 점수표 */
+function subjectsOf(c: Char, stage: number): { list: SubjInfo[]; scores: Record<string, number>; key: "scores" | "scores1"; kw: string } {
+  if (stage >= 1 && c.scores1) {
+    const el = new Set(c.electives1 ?? []);
+    return { list: SUBJECTS1.filter((x) => x.required || el.has(x.id)), scores: c.scores1, key: "scores1", kw: "kw2" };
+  }
+  return { list: SUBJECTS, scores: c.scores, key: "scores", kw: "kw" };
+}
+
 /* ───────── 가입·운영자 ───────── */
 const h_setAdmin = handler<{ uid: string; admin: boolean }>(async (req) => {
   requireAdmin(req);
@@ -95,12 +112,13 @@ const h_seedDefaults = handler(async (req) => {
   requireAdmin(req);
   const batch = db.batch();
   for (const i of ITEMS) batch.set(db.doc(`items/${i.id}`), i, { merge: true });
-  for (const j of JOBS) batch.set(db.doc(`jobs/${j.id}`), j, { merge: true });
+  for (const j of JOBS) batch.set(db.doc(`jobs/${j.id}`), { ...j, stage: 0 }, { merge: true });
+  for (const j of JOBS1) batch.set(db.doc(`jobs/${j.id}`), j, { merge: true });
   const g = await db.doc("settings/global").get();
   if (!g.exists) batch.set(db.doc("settings/global"), { stage: 0, notice: null, updatedAt: Date.now() });
   for (const d of DORMS) batch.set(db.doc(`dorms/${d}-0`), { dorm: d, stage: 0, open: true }, { merge: true });
   await batch.commit();
-  return { ok: true, items: ITEMS.length, jobs: JOBS.length };
+  return { ok: true, items: ITEMS.length, jobs: JOBS.length + JOBS1.length };
 });
 
 /* ───────── 캐릭터 등록 ───────── */
@@ -166,7 +184,8 @@ const h_ration = handler(async (req) =>
     const { ref, c } = await myChar(tx, req);
     const day = kstDay();
     if (c.ration?.day === day) throw bad("오늘 배급은 이미 받았어요.");
-    const g = gIdx(c.scores.kw);
+    const so = subjectsOf(c, await communityStage(tx));
+    const g = gIdx(so.scores[so.kw] ?? 0);
     const n = RATION[g];
     tx.update(ref, { inv: addInv(c.inv, "ration", n), ration: { day } });
     return { n, grade: GRADES[g] };
@@ -177,14 +196,17 @@ const h_ration = handler(async (req) =>
 const h_studyStart = handler<{ subject: SubjectId; useJokbo: boolean }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
-    const sub = SUBJECTS.find((s) => s.id === req.data.subject);
-    if (!sub) throw new HttpsError("invalid-argument", "과목이 올바르지 않아요.");
+    const stageNow = await communityStage(tx);
+    if (stageNow >= 1 && !c.scores1) throw bad("5학년 과목 분배를 먼저 해 주세요. 프로필 수정 → 1차 성장 탭에서 할 수 있어요.");
+    const so = subjectsOf(c, stageNow);
+    const sub = so.list.find((s) => s.id === req.data.subject);
+    if (!sub) throw new HttpsError("invalid-argument", "지금 단계에서 듣는 과목이 아니에요.");
     const day = kstDay();
     const study = c.study?.day === day ? c.study : { day, n: 0 };
     if (study.n >= STUDY_PER_DAY) throw bad("오늘은 더 공부할 수 없어요.");
     if (c.studyJob) throw bad("이미 공부 중이에요.");
     const inv = { ...c.inv };
-    if (sub.id === "kw") {
+    if (sub.id === so.kw) {
       if ((inv.ration || 0) < KW_COST) throw bad("광휘 실습에는 배급 솔리스가 필요해요.");
       addInv(inv, "ration", -KW_COST);
     }
@@ -201,14 +223,17 @@ const h_studyFinish = handler(async (req) =>
     const sj = c.studyJob;
     if (!sj) throw bad("공부 중이 아니에요.");
     if (Date.now() - sj.start < STUDY_MS) throw bad("아직 끝나지 않았어요.");
-    const sub = SUBJECTS.find((s) => s.id === sj.subject)!;
+    const so = subjectsOf(c, await communityStage(tx));
+    const sub = so.list.find((s) => s.id === sj.subject) ?? SUBJECTS.find((s) => s.id === sj.subject) ?? SUBJECTS1.find((s) => s.id === sj.subject);
+    if (!sub) throw bad("과목 정보를 찾을 수 없어요.");
+    const key = SUBJECTS1.some((x) => x.id === sub.id) ? "scores1" : "scores";
     const mx = sub.max || 10;
-    const before = c.scores[sub.id];
+    const before = (key === "scores1" ? c.scores1?.[sub.id] : c.scores[sub.id as SubjectId]) ?? 0;
     const g0 = gIdx(before);
     const base = rnd(0, g0 >= 3 ? Math.round(mx * 0.6) : mx);
     const gain = base + (sj.jokbo ? JOKBO : 0);
     const after = before + gain;
-    tx.update(ref, { [`scores.${sub.id}`]: after, studyJob: null });
+    tx.update(ref, { [`${key}.${sub.id}`]: after, studyJob: null });
     const flavor = base === 0 && sj.jokbo ? "졸았지만 족보 덕분에 살았다." : gain === 0 ? "책을 펴자마자 잠들었다…" : gain <= 3 ? "집중이 잘 되지 않았다." : gain <= 7 ? "꽤 진도를 나갔다." : "오늘은 머리가 맑다!";
     const left = STUDY_PER_DAY - (c.study?.day === kstDay() ? c.study.n : 0);
     return { subject: sub.id, before, after, gain, base, jokbo: sj.jokbo, flavor, left };
@@ -223,8 +248,14 @@ function jobLeft(c: Char) {
 const h_jobStart = handler<{ jobId: string }>(async (req) =>
   db.runTransaction(async (tx) => {
     const { ref, c } = await myChar(tx, req);
-    const j = (await tx.get(db.doc(`jobs/${req.data.jobId}`))).data();
+    const j = (await tx.get(db.doc(`jobs/${req.data.jobId}`))).data() as (typeof JOBS)[number] & { stage?: number } | undefined;
     if (!j) throw new HttpsError("invalid-argument", "아르바이트가 올바르지 않아요.");
+    const stage = await communityStage(tx);
+    if (stage >= 1 && !c.scores1) throw bad("5학년 과목 분배를 먼저 해 주세요. 프로필 수정 → 1차 성장 탭에서 할 수 있어요.");
+    const so = subjectsOf(c, stage);
+    const jobStage = j.stage ?? 0;
+    const wantStage = stage >= 1 && c.scores1 ? 1 : 0;
+    if (jobStage !== wantStage || !so.list.some((x) => x.id === j.subject)) throw bad("지금 단계·과목에 맞는 아르바이트가 아니에요.");
     if (c.job) throw bad("이미 아르바이트 중이에요.");
     if (jobLeft(c) <= 0) throw bad("오늘은 아르바이트를 더 할 수 없어요.");
     const day = kstDay();
@@ -239,7 +270,8 @@ const h_jobFinish = handler(async (req) =>
     if (!c.job) throw bad("아르바이트 중이 아니에요.");
     if (Date.now() - c.job.start < JOB_MS) throw bad("아직 끝나지 않았어요.");
     const j = (await tx.get(db.doc(`jobs/${c.job.id}`))).data() as typeof JOBS[number];
-    const g = gIdx(c.scores[j.subject]);
+    const so = subjectsOf(c, await communityStage(tx));
+    const g = gIdx(so.scores[j.subject] ?? c.scores[j.subject as SubjectId] ?? 0);
     const rate = j.rates[g];
     const ok = Math.random() * 100 < rate;
     const amt = ok ? rnd(j.win[0], j.win[1]) : rnd(j.lose[0], j.lose[1]);
@@ -389,7 +421,7 @@ const h_letterReply = handler<{ threadId: string; text: string }>(async (req) =>
 });
 
 /* ───────── 운영자 ───────── */
-const h_adminAdjust = handler<{ charId: string; target: SubjectId | "money"; n: number; why?: string }>(async (req) => {
+const h_adminAdjust = handler<{ charId: string; target: string; n: number; why?: string }>(async (req) => {
   requireAdmin(req);
   const n = Math.trunc(Number(req.data.n));
   if (!n) throw new HttpsError("invalid-argument", "증감 값을 넣어 주세요.");
@@ -404,10 +436,12 @@ const h_adminAdjust = handler<{ charId: string; target: SubjectId | "money"; n: 
       tx$(tx, req.data.charId, `운영 조정${why ? `: ${why}` : ""}`, n);
       label = `재화 ${n > 0 ? "+" : ""}${n}그로셴`;
     } else {
-      const sub = SUBJECTS.find((s) => s.id === req.data.target);
-      if (!sub) throw new HttpsError("invalid-argument", "항목이 올바르지 않아요.");
-      tx.update(ref, { [`scores.${sub.id}`]: Math.max(0, c.scores[sub.id] + n) });
-      label = `${sub.name} ${n > 0 ? "+" : ""}${n}점`;
+      const sub0 = SUBJECTS.find((s) => s.id === req.data.target);
+      const sub1 = SUBJECTS1.find((s) => s.id === req.data.target);
+      if (!sub0 && !sub1) throw new HttpsError("invalid-argument", "항목이 올바르지 않아요.");
+      if (sub0) tx.update(ref, { [`scores.${sub0.id}`]: Math.max(0, (c.scores[sub0.id] ?? 0) + n) });
+      else tx.update(ref, { [`scores1.${sub1!.id}`]: Math.max(0, (c.scores1?.[sub1!.id] ?? 0) + n) });
+      label = `${(sub0 ?? sub1)!.name} ${n > 0 ? "+" : ""}${n}점`;
     }
     notify(tx, req.data.charId, `운영자가 ${label}을(를) 조정했어요.${why ? ` (${why})` : ""}`, { v: "profile", id: req.data.charId });
     adminLog(tx, `${c.name}: ${label}${why ? ` · ${why}` : ""}`);
@@ -422,8 +456,13 @@ const h_setStage = handler<{ stage: 0 | 1 | 2 }>(async (req) => {
   const batch = db.batch();
   batch.set(db.doc("settings/global"), { stage, updatedAt: Date.now() }, { merge: true });
   // 미리 써 둔 단계 프로필(비공개)을 공개 프로필로 옮겨요.
-  const chars = await db.collection("characters").select().get();
+  const chars = await db.collection("characters").select("scores", "scores1", "alloc1").get();
   for (const c of chars.docs) {
+    const cd = c.data() as Partial<Char>;
+    if (stage >= 1 && !cd.scores1 && cd.alloc1 && cd.scores) {
+      // 미리 제출한 5학년 분배 계획을 지금 점수로 확정해요.
+      batch.set(c.ref, { scores1: materializeStage1(cd.scores, cd.alloc1), electives1: cd.alloc1.electives }, { merge: true });
+    }
     for (let s = 1; s <= stage; s++) {
       const pref = c.ref.collection("private").doc(`stage${s}`);
       const ps = await pref.get();
@@ -444,7 +483,8 @@ const h_setStage = handler<{ stage: 0 | 1 | 2 }>(async (req) => {
 const h_closeSemester = handler<{ post?: boolean }>(async (req) => {
   requireAdmin(req);
   const chars = await db.collection("characters").get();
-  const cnt = chars.docs.map((d) => { const c = d.data() as Char; return { id: d.id, name: c.name, dorm: c.dorm, n: SUBJECTS.filter((s) => gIdx(c.scores[s.id]) === 4).length }; });
+  const stageNow = await communityStage();
+  const cnt = chars.docs.map((d) => { const c = d.data() as Char; const so = subjectsOf(c, stageNow); return { id: d.id, name: c.name, dorm: c.dorm, n: so.list.filter((s) => gIdx(so.scores[s.id] ?? 0) === 4).length }; });
   const topN = Math.max(0, ...cnt.map((x) => x.n));
   const top = topN ? cnt.filter((x) => x.n === topN) : [];
   const dorms = DORMS.filter((d) => d !== "fifth").map((d) => ({ id: d, n: cnt.filter((x) => x.dorm === d).reduce((a, x) => a + x.n, 0) })).sort((a, b) => b.n - a.n);
@@ -478,6 +518,39 @@ const h_deleteCharacter = handler<{ charId: string }>(async (req) => {
 });
 HANDLERS["deleteCharacter"] = h_deleteCharacter as Handler<never>;
 export const deleteCharacter = fn(h_deleteCharacter);
+
+/**
+ * 1차 성장(5학년) 과목 분배. 이어지는 과목(광휘 실습·마법 이론→마법사학·빛 개론→빛의 경제·기초 단련)은 1학년 점수 유지,
+ * 나머지 과목 점수 합이 분배 풀. 전환 전에는 계획(alloc1)으로 저장해 두고 전환 때 확정, 전환 뒤에는 바로 확정(한 번만·운영자는 재조정 가능).
+ */
+const h_allocateStage1 = handler<{ charId?: string; electives: string[]; alloc: Record<string, number> }>(async (req) =>
+  db.runTransaction(async (tx) => {
+    const admin = req.auth?.token.admin === true;
+    let ref: DocumentReference; let c: Char;
+    if (admin && req.data.charId) { ref = db.doc(`characters/${req.data.charId}`); const snap = await tx.get(ref); if (!snap.exists) throw bad("캐릭터를 찾을 수 없어요."); c = { id: snap.id, ...(snap.data() as Omit<Char, "id">) }; }
+    else ({ ref, c } = await myChar(tx, req));
+    const stageNow = await communityStage(tx);
+    if (c.scores1 && !admin) throw bad("5학년 과목 분배는 이미 확정됐어요. 변경은 운영자에게 문의해 주세요.");
+    const electives = [...new Set((req.data.electives ?? []).filter((e) => SUBJECTS1.some((s) => !s.required && s.id === e)))];
+    if (electives.length < ELECTIVE_MIN) throw bad(`선택과목은 ${ELECTIVE_MIN}개 이상 골라야 해요.`);
+    const pool = DROPPED_AT_1.reduce((a, id) => a + (c.scores[id] ?? 0), 0);
+    const targets = SUBJECTS1.filter((s) => (s.required && !s.from) || electives.includes(s.id)).map((s) => s.id);
+    const alloc: Record<string, number> = {};
+    let sum = 0;
+    for (const id of targets) { const v = Number(req.data.alloc?.[id] ?? 0); if (!Number.isInteger(v) || v < 0) throw bad("분배 값이 올바르지 않아요."); alloc[id] = v; sum += v; }
+    if (sum !== pool) throw bad(`분배 합계는 정확히 ${pool}점이어야 해요. (지금 ${sum}점)`);
+    const plan: Stage1Plan = { electives, alloc };
+    if (stageNow >= 1) {
+      const scores1 = materializeStage1(c.scores, plan);
+      tx.update(ref, { scores1, electives1: electives, alloc1: plan });
+      return { ok: true, final: true, scores1 };
+    }
+    tx.update(ref, { alloc1: plan });
+    return { ok: true, final: false };
+  }),
+);
+HANDLERS["allocateStage1"] = h_allocateStage1 as Handler<never>;
+export const allocateStage1 = fn(h_allocateStage1);
 
 /* ───────── 내보내기: 개별 함수 + 단일 진입점 api ───────── */
 HANDLERS["setAdmin"] = h_setAdmin as Handler<never>;

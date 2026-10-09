@@ -242,6 +242,17 @@ p { margin: 0; }
   line-height: 1.8;
 }
 
+/* 프로필 페이지: 캐릭터 학부 색으로 강조색(금빛)을 바꿔요 */
+.dorm-theme-aurora { --gold: var(--tint-aurora); }
+.dorm-theme-vesper { --gold: var(--tint-vesper); }
+.dorm-theme-candida { --gold: var(--tint-candida); }
+.dorm-theme-astra { --gold: var(--tint-astra); }
+.dorm-theme-fifth { --gold: var(--tint-fifth); }
+[class*="dorm-theme-"] {
+  --gold-soft: color-mix(in srgb, var(--gold) 13%, var(--surface));
+  --glow: color-mix(in srgb, var(--gold) 16%, transparent);
+}
+
 @layer components {
 .jimun { color: var(--muted); }
 

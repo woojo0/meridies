@@ -3,9 +3,10 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import {
   FORTUNES, HEARTS, JOB_MS, JOB_PER_DAY, JOKBO, KW_COST, LETTER_MS, RATION, START_MONEY, STUDY_MS, STUDY_PER_DAY,
-  SUBJECTS, TRANSFER_FEE, DORMS, GRADES, H, subject,
+  SUBJECTS, TRANSFER_FEE, DORMS, GRADES, H,
 } from "./constants";
 import { LIVE } from "./firebase";
+import { SUBJECTS1, jobsFor, kwIdFor, materializeStage1, needsStage1Alloc, scoresFor, subjectName, subjectsFor } from "./curriculum";
 import { gIdx, pad, rnd, uid, ymd } from "./format";
 import { DATA_VERSION, scoresFrom, seed } from "./seed";
 import type { CatId, Character, Data, DormId, Item, Profile, Stage, SubjectId, Tx } from "./types";
@@ -15,7 +16,7 @@ import type { CatId, Character, Data, DormId, Item, Profile, Stage, SubjectId, T
 const live = () => (require("./live") as typeof import("./live"));
 
 export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, number] }
-export interface StudyResult { subject: SubjectId; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
+export interface StudyResult { subject: string; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
 export interface JobResult { jobId: string; ok: boolean; amt: number; rate: number; grade: number }
 export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null }
 export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null; quote?: string; catchphrase?: string; nameLatin?: string; nameNative?: string; keywords?: string[]; nameSize?: number };
@@ -83,7 +84,7 @@ interface State {
   enterDorm: (dormId: DormId) => Promise<void>;
 
   ration: () => Promise<number>;
-  studyStart: (subjectId: SubjectId, useJokbo: boolean) => Promise<string | null>;
+  studyStart: (subjectId: string, useJokbo: boolean) => Promise<string | null>;
   studyFinish: () => Promise<StudyResult | null>;
   jobStart: (jobId: string) => Promise<string | null>;
   jobFinish: () => Promise<JobResult | null>;
@@ -91,6 +92,7 @@ interface State {
 
   saveProfile: (stage: Stage, p: Profile, charId?: string) => Promise<void>;
   renameCharacter: (charId: string, name: string) => Promise<void>;
+  allocateStage1: (electives: string[], alloc: Record<string, number>, charId?: string) => Promise<void>;
   loadSecret: (charId: string) => Promise<string | null>;
   loadPrivate: (charId: string) => Promise<PrivateProfile>;
   savePrivate: (charId: string, p: PrivateProfile) => Promise<void>;
@@ -118,7 +120,7 @@ interface State {
   openChat: (charId: string) => void;
   closeChat: (charId: string) => void;
   sendChat: (charId: string, text: string) => Promise<void>;
-  adjust: (charId: string, target: SubjectId | "money", n: number, why: string) => Promise<string>;
+  adjust: (charId: string, target: string, n: number, why: string) => Promise<string>;
 
   shiftTime: (h: number) => void;
   reset: () => void;
@@ -252,7 +254,7 @@ export const useStore = create<State>()(
         ration: async () => {
           if (LIVE) return L().ration();
           let n = 0;
-          set((s) => { const m = mine(s.data); if (!m || rationToday(m, get().now())) return; n = RATION[gIdx(m.scores.kw)]; addInv(m, "ration", n); m.ration = { day: ymd(new Date(get().now())) }; });
+          set((s) => { const m = mine(s.data); if (!m || rationToday(m, get().now())) return; n = RATION[gIdx(scoresFor(s.data.stage, m)[kwIdFor(s.data.stage, m)] ?? 0)]; addInv(m, "ration", n); m.ration = { day: ymd(new Date(get().now())) }; });
           return n;
         },
         studyStart: async (subjectId, useJokbo) => {
@@ -263,8 +265,10 @@ export const useStore = create<State>()(
             m.study = m.study?.day === day ? m.study : { day, n: 0 };
             if (m.study.n >= STUDY_PER_DAY) { err = "오늘은 더 공부할 수 없어요."; return; }
             if (m.studyJob) { err = "이미 공부 중이에요."; return; }
-            if (subjectId === "kw" && (m.inv.ration || 0) < KW_COST) { err = "광휘 실습에는 배급 솔리스가 필요해요."; return; }
-            if (subjectId === "kw") addInv(m, "ration", -KW_COST);
+            if (needsStage1Alloc(s.data.stage, m)) { err = "5학년 과목 분배를 먼저 해 주세요. 프로필 수정 → 1차 성장 탭"; return; }
+            if (!subjectsFor(s.data.stage, m).some((x) => x.id === subjectId)) { err = "지금 단계에서 듣는 과목이 아니에요."; return; }
+            if (subjectId === kwIdFor(s.data.stage, m) && (m.inv.ration || 0) < KW_COST) { err = "광휘 실습에는 배급 솔리스가 필요해요."; return; }
+            if (subjectId === kwIdFor(s.data.stage, m)) addInv(m, "ration", -KW_COST);
             const jb = useJokbo && m.inv.jokbo > 0; if (jb) addInv(m, "jokbo", -1);
             m.study.n++; m.studyJob = { subject: subjectId, start: now, jokbo: jb };
           });
@@ -275,11 +279,13 @@ export const useStore = create<State>()(
           let out: StudyResult | null = null;
           set((s) => {
             const m = mine(s.data); const sj = m?.studyJob; if (!m || !sj) return; const now = get().now(); if (now - sj.start < STUDY_MS) return;
-            const sub = subject(sj.subject); const mx = sub.max || 10; const before = m.scores[sub.id]; const g0 = gIdx(before);
+            const sub = [...SUBJECTS, ...SUBJECTS1].find((x) => x.id === sj.subject)!; const mx = sub.max || 10;
+            const table = SUBJECTS1.some((x) => x.id === sub.id) ? (m.scores1 ??= {}) : (m.scores as Record<string, number>);
+            const before = table[sub.id] ?? 0; const g0 = gIdx(before);
             const base = rnd(0, g0 >= 3 ? Math.round(mx * 0.6) : mx); const gain = base + (sj.jokbo ? JOKBO : 0);
-            m.scores[sub.id] = before + gain; m.studyJob = null;
+            table[sub.id] = before + gain; m.studyJob = null;
             const flavor = base === 0 && sj.jokbo ? "졸았지만 족보 덕분에 살았다." : gain === 0 ? "책을 펴자마자 잠들었다…" : gain <= 3 ? "집중이 잘 되지 않았다." : gain <= 7 ? "꽤 진도를 나갔다." : "오늘은 머리가 맑다!";
-            out = { subject: sub.id, before, after: m.scores[sub.id], gain, base, jokbo: sj.jokbo, flavor, left: STUDY_PER_DAY - (m.study?.n ?? 0) };
+            out = { subject: sub.id, before, after: table[sub.id], gain, base, jokbo: sj.jokbo, flavor, left: STUDY_PER_DAY - (m.study?.n ?? 0) };
           });
           return out;
         },
@@ -289,6 +295,8 @@ export const useStore = create<State>()(
           set((s) => {
             const m = mine(s.data); if (!m) return; const now = get().now();
             if (m.job) { err = "이미 아르바이트 중이에요."; return; }
+            if (needsStage1Alloc(s.data.stage, m)) { err = "5학년 과목 분배를 먼저 해 주세요. 프로필 수정 → 1차 성장 탭"; return; }
+            if (!jobsFor(s.data.stage, m, s.data.jobs).some((j) => j.id === jobId)) { err = "지금 단계·과목에 맞는 아르바이트가 아니에요."; return; }
             if (jobLeft(m, now) <= 0) { err = "오늘은 아르바이트를 더 할 수 없어요."; return; }
             const day = ymd(new Date(now)); m.jobDay = m.jobDay?.day === day ? m.jobDay : { day, n: 0, bonus: 0 }; m.jobDay.n++; m.job = { id: jobId, start: now };
           });
@@ -299,7 +307,7 @@ export const useStore = create<State>()(
           let out: JobResult | null = null;
           set((s) => {
             const m = mine(s.data); if (!m?.job) return; const now = get().now(); if (now - m.job.start < JOB_MS) return;
-            const j = s.data.jobs.find((x) => x.id === m.job!.id)!; const g = gIdx(m.scores[j.subject]); const rate = j.rates[g];
+            const j = s.data.jobs.find((x) => x.id === m.job!.id)!; const g = gIdx(scoresFor(s.data.stage, m)[j.subject] ?? 0); const rate = j.rates[g];
             const ok = Math.random() * 100 < rate; const amt = ok ? rnd(j.win[0], j.win[1]) : rnd(j.lose[0], j.lose[1]);
             m.money += amt; m.tx.unshift({ at: now, text: `아르바이트: ${j.name} (${ok ? "성공" : "실패"})`, amt }); m.job = null;
             out = { jobId: j.id, ok, amt, rate, grade: g };
@@ -325,6 +333,15 @@ export const useStore = create<State>()(
 
         saveProfile: async (stage, p, charId) => { if (LIVE) return L().saveProfile(stage, p, charId); set((s) => { const m = charId ? s.data.chars.find((c) => c.id === charId) : mine(s.data); if (m) m.profiles[stage] = p; }); },
         loadSecret: async (charId) => { if (LIVE) return L().loadSecret(charId); return get().secrets[charId] ?? ""; },
+        allocateStage1: async (electives, alloc, charId) => {
+          if (LIVE) return L().allocateStage1(electives, alloc, charId);
+          set((s) => {
+            const c = charId ? s.data.chars.find((x) => x.id === charId) : mine(s.data); if (!c) return;
+            const plan = { electives, alloc };
+            c.alloc1 = plan;
+            if (s.data.stage >= 1) { c.scores1 = materializeStage1(c.scores, plan); c.electives1 = electives; }
+          });
+        },
         renameCharacter: async (charId, name) => { if (LIVE) return L().renameCharacter(charId, name); set((s) => { const c = s.data.chars.find((x) => x.id === charId); if (c) c.name = name; }); },
         loadPrivateProfiles: async (charId) => (LIVE ? L().loadPrivateProfiles(charId) : {}),
         loadPrivate: async (charId) => { if (LIVE) return L().loadPrivate(charId); return get().privates[charId] ?? { secret: get().secrets[charId] ?? "", trigger: "", growthIf: "" }; },
@@ -378,9 +395,9 @@ export const useStore = create<State>()(
         clearReadNotifs: async () => { if (LIVE) return L().clearReadNotifs(); set((s) => { s.data.notifs = s.data.notifs.filter((n) => !(n.to === s.session.charId && n.read)); }); },
         markNotif: async (id) => { if (LIVE) return L().markNotif(id); set((s) => { const n = s.data.notifs.find((n) => n.id === id); if (n) n.read = true; }); },
 
-        setStage: async (st) => { if (LIVE) return L().setStage(st); set((s) => { s.data.stage = st; }); },
+        setStage: async (st) => { if (LIVE) return L().setStage(st); set((s) => { s.data.stage = st; if (st >= 1) for (const c of s.data.chars) if (!c.scores1 && c.alloc1) { c.scores1 = materializeStage1(c.scores, c.alloc1); c.electives1 = c.alloc1.electives; } }); },
         semester: async () => { if (LIVE) return L().semester(); set((s) => {
-          const cnt = s.data.chars.map((c) => ({ id: c.id, dorm: c.dorm, n: SUBJECTS.filter((x) => gIdx(c.scores[x.id]) === 4).length }));
+          const cnt = s.data.chars.map((c) => ({ id: c.id, dorm: c.dorm, n: subjectsFor(s.data.stage, c).filter((x) => gIdx(scoresFor(s.data.stage, c)[x.id] ?? 0) === 4).length }));
           const topN = Math.max(0, ...cnt.map((x) => x.n));
           s.data.results = { topN, top: topN ? cnt.filter((x) => x.n === topN).map((x) => x.id) : [], dorms: DORMS.filter((d) => d.id !== "fifth").map((d) => ({ id: d.id, n: cnt.filter((x) => x.dorm === d.id).reduce((a, x) => a + x.n, 0) })).sort((a, b) => b.n - a.n) };
         }); },
@@ -412,7 +429,8 @@ export const useStore = create<State>()(
           set((s) => {
             const c = s.data.chars.find((c) => c.id === charId); if (!c) return; const now = get().now();
             if (target === "money") { c.money = Math.max(0, c.money + n); c.tx.unshift({ at: now, text: `운영 조정${why ? `: ${why}` : ""}`, amt: n }); label = `재화 ${n > 0 ? "+" : ""}${n}그로셴`; }
-            else { c.scores[target] = Math.max(0, c.scores[target] + n); label = `${subject(target).name} ${n > 0 ? "+" : ""}${n}점`; }
+            else if (SUBJECTS1.some((x) => x.id === target)) { (c.scores1 ??= {})[target] = Math.max(0, (c.scores1[target] ?? 0) + n); label = `${subjectName(target)} ${n > 0 ? "+" : ""}${n}점`; }
+            else { c.scores[target as SubjectId] = Math.max(0, (c.scores[target as SubjectId] ?? 0) + n); label = `${subjectName(target)} ${n > 0 ? "+" : ""}${n}점`; }
             pushNotif(s.data, c.id, `운영자가 ${label}을(를) 조정했어요.${why ? ` (${why})` : ""}`, { v: "profile", id: c.id });
             s.data.adminLog.unshift({ at: now, text: `${c.name}: ${label}${why ? ` · ${why}` : ""}` });
           });

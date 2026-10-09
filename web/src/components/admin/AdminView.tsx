@@ -2,14 +2,15 @@
 
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { DORMS, STAGES, SUBJECTS, dorm as dormOf, subject } from "@/lib/constants";
+import { DORMS, STAGES, SUBJECTS, dorm as dormOf } from "@/lib/constants";
+import { SUBJECTS1, subjectName } from "@/lib/curriculum";
 import { ago } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
 import { LIVE } from "@/lib/firebase";
 import { L as liveApi } from "@/lib/live";
 import { useStore } from "@/lib/store";
-import type { Stage, SubjectId } from "@/lib/types";
+import type { Stage } from "@/lib/types";
 import { Crest } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
 import { Button, Empty, Field, Input, Segmented, Textarea } from "../ui/primitives";
@@ -42,7 +43,7 @@ export function AdminView() {
   const r = data.results;
   const nameOf = (id: string) => data.chars.find((c) => c.id === id)?.name ?? "";
 
-  const [adj, setAdj] = useState({ c: data.chars[0]?.id ?? "", t: "kw" as SubjectId | "money", n: "10", why: "" });
+  const [adj, setAdj] = useState({ c: data.chars[0]?.id ?? "", t: "money" as string, n: "10", why: "" });
   const [notice, setNotice] = useState(data.notice?.text ?? "");
 
   return (
@@ -78,7 +79,7 @@ export function AdminView() {
       <Card title="성적·재화 조정" desc="이벤트 보상이나 정정에 써요. 조정하면 해당 캐릭터에게 알림이 가고 운영 기록에 남아요.">
         <Field label="캐릭터" htmlFor="ad-c"><Dropdown id="ad-c" value={adj.c} onChange={(v) => setAdj({ ...adj, c: v })} options={data.chars.map((c) => ({ v: c.id, l: c.name }))} /></Field>
         <div className="grid grid-cols-[1fr_110px] gap-2.5">
-          <Field label="항목" htmlFor="ad-t"><Dropdown<SubjectId | "money"> id="ad-t" value={adj.t} onChange={(v) => setAdj({ ...adj, t: v })} options={[...SUBJECTS.map((s) => ({ v: s.id as SubjectId | "money", l: s.name })), { v: "money" as const, l: "재화 (그로셴)" }]} /></Field>
+          <Field label="항목" htmlFor="ad-t"><Dropdown<string> id="ad-t" value={adj.t} onChange={(v) => setAdj({ ...adj, t: v })} options={[{ v: "money", l: "재화 (그로셴)" }, ...SUBJECTS.map((s) => ({ v: s.id as string, l: `1학년 · ${s.name}` })), ...SUBJECTS1.map((s) => ({ v: s.id, l: `5학년 · ${s.name}` }))]} /></Field>
           <Field label="증감" htmlFor="ad-n"><Input id="ad-n" type="number" inputMode="numeric" value={adj.n} onChange={(e) => setAdj({ ...adj, n: e.target.value })} /></Field>
         </div>
         <Field label="사유" htmlFor="ad-r"><Input id="ad-r" placeholder="예: 등불 축제 보상" value={adj.why} onChange={(e) => setAdj({ ...adj, why: e.target.value })} /></Field>
@@ -97,15 +98,21 @@ export function AdminView() {
       </Card>
 
 
-      <Card title="아르바이트 목록" desc="9종. 성공률은 해당 과목 등급(니힐/빅스/사티스/베네/옵티메) 순서예요.">
-        <div className="divide-y divide-line">
-          {data.jobs.map((j) => (
-            <div key={j.id} className="py-2.5">
-              <span className="block font-semibold">{j.name}</span>
-              <span className="block text-[13px] text-muted">{subject(j.subject).name} · 성공률 {j.rates.join("/")}% · 보상 {j.win[0]}~{j.win[1]}그로셴</span>
+      <Card title="아르바이트 목록" desc="1학년 9종 · 5학년 11종(과목마다 하나). 1차 성장으로 전환하면 각자 듣는 과목에 맞는 5학년 아르바이트만 보여요. 성공률은 과목 등급(니힐/빅스/사티스/베네/옵티메) 순서예요.">
+        {[0, 1].map((st) => (
+          <div key={st} className="mb-3 last:mb-0">
+            <span className="eyebrow mb-1 block">{st === 0 ? "1학년 · 입학" : "5학년 · 1차 성장"}</span>
+            <div className="divide-y divide-line">
+              {data.jobs.filter((j) => (j.stage ?? 0) === st).map((j) => (
+                <div key={j.id} className="py-2.5">
+                  <span className="block font-semibold">{j.name}</span>
+                  <span className="block text-[13px] text-muted">{subjectName(j.subject)} · 성공률 {j.rates.join("/")}% · 보상 {j.win[0]}~{j.win[1]}그로셴</span>
+                </div>
+              ))}
+              {!data.jobs.some((j) => (j.stage ?? 0) === st) && <p className="py-2 text-[13px] text-muted">아직 없어요. 위의 “기본 데이터 넣기”를 다시 누르면 추가돼요.</p>}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </Card>
 
       <ShopCard />

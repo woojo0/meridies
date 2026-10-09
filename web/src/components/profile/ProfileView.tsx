@@ -3,7 +3,9 @@
 import { ArrowRightLeft, BookOpen, Briefcase, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { GRADES, JOB_MS, RATION, SOLIS_LABEL, STAGES, STAGE_GRADE, STUDY_MS, SUBJECTS, dorm as dormOf } from "@/lib/constants";
+import { GRADES, JOB_MS, RATION, SOLIS_LABEL, STAGES, STAGE_GRADE, STUDY_MS, dorm as dormOf } from "@/lib/constants";
+import { kwIdFor, needsStage1Alloc, scoresFor, subjectsFor } from "@/lib/curriculum";
+import { BgmPlayer } from "./BgmPlayer";
 import { ago, cx, fmtDur, gIdx, money } from "@/lib/format";
 import { useDesktop, useMe, useTick } from "@/lib/hooks";
 import { useOverlay } from "@/lib/overlay";
@@ -46,9 +48,10 @@ export function ProfileView({ c: base }: { c: Character }) {
   const maxStage = mine || admin0 ? 2 : stage;
   const st = pStage ?? stage;
   const { p, stage: shown } = prof(c, st);
-  const kwG = gIdx(c.scores.kw);
+  const curScores = scoresFor(stage, c);
+  const kwG = gIdx(curScores[kwIdFor(stage, c)] ?? 0);
   const d = dormOf(c.dorm);
-  const opt = SUBJECTS.filter((s) => gIdx(c.scores[s.id]) === 4).length;
+  const opt = subjectsFor(stage, c).filter((s) => gIdx(curScores[s.id] ?? 0) === 4).length;
   const tint = c.dorm === "fifth" ? "var(--glow)" : `color-mix(in srgb, var(--${c.dorm}) 22%, transparent)`;
 
   const studyLbl = c.studyJob ? (now - c.studyJob.start >= STUDY_MS ? "공부 끝!" : fmtDur(c.studyJob.start + STUDY_MS - now)) : "공부하기";
@@ -103,11 +106,14 @@ export function ProfileView({ c: base }: { c: Character }) {
   const admin = useStore((s) => s.session.admin);
   const editBtn = (mine || admin) && <Link href={`/profile/${c.id}/edit?stage=${st}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[13px] font-semibold hover:border-line-strong"><Pencil size={14} strokeWidth={1.8} />{STAGES[st]} 프로필 {c.profiles[st as Stage] ? "수정" : "작성"}</Link>;
   const secretCard = (mine || admin) ? <SecretCard charId={c.id} /> : null;
+  const bgmUrl = p.bgm?.trim() || c.profiles[0]?.bgm?.trim() || "";
+  const bgm = bgmUrl ? <BgmPlayer key={bgmUrl} url={bgmUrl} title={p.bgm?.trim() ? p.bgmTitle : c.profiles[0]?.bgmTitle} /> : null;
+  const theme = `dorm-theme-${c.dorm}`;
 
   /* ───────── 데스크톱: 왼쪽 전신, 오른쪽 두상+프로필 카드, 아래 기타 정보 ───────── */
   if (desktop) {
     return (
-      <div className="mt-2 grid grid-cols-1 gap-7 xl:grid-cols-[minmax(0,1fr)_460px]">
+      <div className={cx("mt-2 grid grid-cols-1 gap-7 xl:grid-cols-[minmax(0,1fr)_460px]", theme)}>
         <aside className="self-start">
           <div className="card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
@@ -135,9 +141,10 @@ export function ProfileView({ c: base }: { c: Character }) {
           {stageNotes}
           <section className="card relative mt-2 overflow-hidden px-7 py-6">
             <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
+            {bgm && <div className="absolute right-4 top-4 z-[1]">{bgm}</div>}
             <div className="relative flex items-start gap-6">
               <span className="shrink-0 rounded-full p-[3px] ring-1 ring-line"><Avatar c={c} stage={stage} size="xl" className="size-[104px]" /></span>
-              <div className="min-w-0 flex-1">
+              <div className={cx("min-w-0 flex-1", bgm && "pt-7")}>
                 {nameLine}
                 {inlineBits.length > 0 && <div className="mt-2 flex flex-wrap gap-x-2 text-[14px] text-muted">{inlineBits.map((b, i) => <span key={i}>{i > 0 && <span className="mr-2 opacity-50">·</span>}{b}</span>)}</div>}
                 <dl className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[14.5px]">
@@ -173,9 +180,10 @@ export function ProfileView({ c: base }: { c: Character }) {
 
   /* ───────── 모바일 ───────── */
   return (
-    <>
+    <div className={theme}>
       <div className="card relative mt-2 overflow-hidden p-5">
         <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
+        {bgm && <div className="relative mb-3 flex justify-end">{bgm}</div>}
         <div className="relative flex items-center gap-4">
           <span className="rounded-full p-[3px] ring-1 ring-line"><Avatar c={c} stage={stage} size="lg" className="size-[76px]" /></span>
           <div className="min-w-0">
@@ -233,23 +241,36 @@ export function ProfileView({ c: base }: { c: Character }) {
       {tab === "grades" && <GradesPanel c={c} opt={opt} kwG={kwG} />}
       {tab === "inv" && <InvPanel c={c} mine={mine} items={items} now={now} openSheet={openSheet} />}
       {tab === "rp" && <div className="card-flat"><RoomList charId={c.id} /></div>}
-    </>
+    </div>
   );
 }
 
 function GradesPanel({ c, opt, kwG }: { c: Character; opt: number; kwG: number }) {
+  const stage = useStore((s) => s.data.stage);
+  const me = useMe();
+  const admin = useStore((s) => s.session.admin);
+  const subs = subjectsFor(stage, c);
+  const scores = scoresFor(stage, c);
+  const needAlloc = needsStage1Alloc(stage, c);
   return (
     <>
+      {needAlloc && (
+        <Note className="mb-3 mt-0">
+          5학년 과목 분배가 아직 안 됐어요. 1학년 성적을 보여주고 있어요.
+          {(me?.id === c.id || admin) && <> <Link href={`/profile/${c.id}/edit?stage=1`} className="font-semibold text-gold underline-offset-2 hover:underline">과목 분배하러 가기</Link></>}
+        </Note>
+      )}
+      {stage >= 1 && c.scores1 && <span className="eyebrow mb-2 block">5학년 교과 · 선택: {(c.electives1 ?? []).map((id) => subs.find((s) => s.id === id)?.name ?? id).join(", ") || "없음"}</span>}
       <div className="card mb-3 flex items-center justify-between gap-3 p-4">
         <div>
           <span className="eyebrow">Optime</span>
-          <b className="block font-display text-lg tnum">{opt}<span className="ml-1 text-[13px] font-normal text-muted">개 · 총점 {Object.values(c.scores).reduce((a, b) => a + b, 0).toLocaleString()}</span></b>
+          <b className="block font-display text-lg tnum">{opt}<span className="ml-1 text-[13px] font-normal text-muted">개 · 총점 {subs.reduce((a, s) => a + (scores[s.id] ?? 0), 0).toLocaleString()}</span></b>
         </div>
         <div className="text-right text-[12.5px] leading-snug text-muted">솔리스 배급<br /><b className="text-ink">하루 {RATION[kwG]}병</b> · {SOLIS_LABEL[kwG]}</div>
       </div>
       <div className="card divide-y divide-line px-4 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:divide-y-0 lg:px-6">
-        {SUBJECTS.map((s) => {
-          const v = c.scores[s.id]; const g = gIdx(v); const pct = g === 4 ? 100 : v % 100;
+        {subs.map((s) => {
+          const v = scores[s.id] ?? 0; const g = gIdx(v); const pct = g === 4 ? 100 : v % 100;
           return (
             <div key={s.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2.5 gap-y-1.5 py-3.5 lg:border-b lg:border-line">
               <span className="font-medium">{s.name}</span>

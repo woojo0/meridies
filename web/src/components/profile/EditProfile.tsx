@@ -10,6 +10,8 @@ import type { Character, Profile, Stage } from "@/lib/types";
 import { Markdown } from "../ui/Markdown";
 import { Button, Chip, ChipRow, Empty, Field, Input, Note, SectionHead, Textarea } from "../ui/primitives";
 import { ImagePick, KeywordsInput } from "./formBits";
+import { Stage1Alloc } from "./Stage1Alloc";
+import { youtubeId } from "./BgmPlayer";
 
 /** 프로필 수정 페이지: /profile/[id]/edit?stage=N. 본인(또는 운영자)만. */
 export function EditProfile() {
@@ -38,10 +40,10 @@ export function EditProfile() {
   if (!(mine || admin)) return <Empty className="py-16">본인 캐릭터만 수정할 수 있어요.</Empty>;
   if (priv === null || privProfiles === null) return null;
   const merged: Character = { ...c, profiles: { ...c.profiles, ...privProfiles } };
-  return <EditForm key={stage} c={merged} stage={stage} setStage={setStage} maxStage={maxStage} communityStage={communityStage} priv={priv} setPriv={setPriv} />;
+  return <EditForm key={stage} c={merged} stage={stage} setStage={setStage} maxStage={maxStage} communityStage={communityStage} priv={priv} setPriv={setPriv} admin={!!admin} />;
 }
 
-function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv }: { c: Character; stage: Stage; setStage: (s: Stage) => void; maxStage: number; communityStage: number; priv: PrivateProfile; setPriv: (p: PrivateProfile) => void }) {
+function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv, admin }: { c: Character; stage: Stage; setStage: (s: Stage) => void; maxStage: number; communityStage: number; priv: PrivateProfile; setPriv: (p: PrivateProfile) => void; admin: boolean }) {
   const router = useRouter();
   const saveProfile = useStore((s) => s.saveProfile);
   const savePrivate = useStore((s) => s.savePrivate);
@@ -66,6 +68,7 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
     const nm = name.trim();
     if (!nm || nm.length > 20) { toast("이름은 1~20자예요."); return; }
     if (nameSizeBad) { toast("이름 글자 크기는 12~36 사이의 정수여야 해요."); return; }
+    if ((p.bgm ?? "").trim() && !youtubeId(p.bgm!)) { toast("BGM은 유튜브 링크만 넣을 수 있어요."); return; }
     setBusy(true);
     try {
       if (nm !== c.name) await renameCharacter(c.id, nm);
@@ -92,6 +95,13 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
           </ChipRow>
           {stage > communityStage && <Note>운영자가 {STAGES[stage]}로 전환하기 전까지 나와 운영자만 볼 수 있어요(비공개 저장). 미리 써 두면 전환 때 자동으로 공개돼요.</Note>}
         </div>
+
+        {stage === 1 && (
+          <>
+            <SectionHead title="5학년 과목 분배" aside="아래 프로필과 따로 저장돼요" />
+            <Stage1Alloc c={c} admin={admin} />
+          </>
+        )}
 
         <SectionHead title="한 줄" aside="각 10자 이내" />
         <div className="card p-5 pb-1">
@@ -146,6 +156,16 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
           <Field label="서술" htmlFor="pf-p" hint={`공백 미포함 300자 이상 · 현재 ${(p.pers ?? "").replace(/\s/g, "").length}자`}>
             {md(p.pers, "pf-p", "min-h-[200px]", set("pers"))}
           </Field>
+        </div>
+
+        <SectionHead title="BGM" aside="선택 · 유튜브 링크" />
+        <div className="card p-5 pb-1">
+          <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-x-3">
+            <Field label="유튜브 링크" htmlFor="pf-bgm" hint={(p.bgm ?? "").trim() && !youtubeId(p.bgm!) ? <span className="text-crit">유튜브 영상 링크가 아니에요.</span> : "프로필 카드 오른쪽 위에 작은 재생 버튼이 생겨요. 비우면 입학 프로필의 BGM을 따라가요."}>
+              <Input id="pf-bgm" inputMode="url" value={p.bgm ?? ""} onChange={set("bgm")} className={(p.bgm ?? "").trim() && !youtubeId(p.bgm!) ? "border-crit" : ""} />
+            </Field>
+            <Field label="표시할 제목 (선택)" htmlFor="pf-bgmt" hint="비우면 영상 제목"><Input id="pf-bgmt" maxLength={40} value={p.bgmTitle ?? ""} onChange={set("bgmTitle")} /></Field>
+          </div>
         </div>
 
         <SectionHead title="소개 · 기타" />

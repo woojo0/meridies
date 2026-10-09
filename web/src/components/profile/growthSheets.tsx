@@ -2,7 +2,9 @@
 
 import { Scroll } from "lucide-react";
 import { useState } from "react";
-import { GRADES, JOB_MS, JOKBO, KW_COST, STUDY_MS, STUDY_PER_DAY, SUBJECTS, TRANSFER_FEE, TRANSFER_MIN, subject } from "@/lib/constants";
+import { GRADES, JOB_MS, JOKBO, KW_COST, STUDY_MS, STUDY_PER_DAY, TRANSFER_FEE, TRANSFER_MIN } from "@/lib/constants";
+import { jobsFor, kwIdFor, needsStage1Alloc, scoresFor, subjectName, subjectsFor } from "@/lib/curriculum";
+import Link from "next/link";
 import { fmtDur, gIdx, money } from "@/lib/format";
 import { useMe, useTick } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
@@ -30,13 +32,16 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
   const studyFinish = useStore((s) => s.studyFinish);
   const shiftTime = useStore((s) => s.shiftTime);
   const { openSheet, closeSheet } = useOverlay();
+  const stage = useStore((s) => s.data.stage);
   const [jokbo, setJokbo] = useState(initialJokbo);
   const [busy, setBusy] = useState<string | null>(null);
   if (!me) return null;
   const left = studyLeft(me, now);
+  if (needsStage1Alloc(stage, me)) return <AllocNeeded charId={me.id} what="공부" />;
+  const subs = subjectsFor(stage, me); const scores = scoresFor(stage, me); const kwId = kwIdFor(stage, me);
 
   if (me.studyJob) {
-    const sj = me.studyJob; const sub = subject(sj.subject);
+    const sj = me.studyJob; const sub = { name: subjectName(sj.subject) };
     const el = now - sj.start; const done = el >= STUDY_MS;
     return (
       <>
@@ -50,7 +55,7 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
               const g0 = gIdx(r.before), g1 = gIdx(r.after);
               openSheet(
                 <ResultSheet
-                  eyebrow={subject(r.subject).name}
+                  eyebrow={subjectName(r.subject)}
                   big={`+${r.gain}점`}
                   bigClass={r.gain ? "" : "text-muted"}
                   actions={<><Button variant="ghost" onClick={closeSheet}>닫기</Button><Button onClick={() => openStudySheet()} disabled={r.left <= 0}>다시 공부하기</Button></>}
@@ -83,9 +88,9 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
         </label>
       )}
       <div className="flex flex-col gap-2">
-        {SUBJECTS.map((s) => {
-          const v = me.scores[s.id]; const g = gIdx(v); const mx = g >= 3 ? Math.round((s.max || 10) * 0.6) : s.max || 10;
-          const disabled = left <= 0 || (s.id === "kw" && (me.inv.ration || 0) < KW_COST);
+        {subs.map((s) => {
+          const v = scores[s.id] ?? 0; const g = gIdx(v); const mx = g >= 3 ? Math.round((s.max || 10) * 0.6) : s.max || 10;
+          const disabled = left <= 0 || (s.id === kwId && (me.inv.ration || 0) < KW_COST);
           return (
             <button
               key={s.id}
@@ -97,7 +102,7 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
               <span className={`lat text-lg ${gradeTone[g]}`}>{GRADES[g].l}</span>
               <span className="col-span-2 text-[12.5px] text-muted tnum">
                 {GRADES[g].k} · {v}점{g < 4 ? ` · 다음 등급까지 ${100 - (v % 100)}` : ""} · 1회 0~{mx}점{s.hard ? <> · <b className="text-crit">{s.hard}</b></> : ""}
-                {s.id === "kw" && <><br />배급 솔리스 {KW_COST}병 사용 · 보유 {me.inv.ration || 0}병</>}
+                {s.id === kwId && <><br />배급 솔리스 {KW_COST}병 사용 · 보유 {me.inv.ration || 0}병</>}
               </span>
             </button>
           );
@@ -111,16 +116,19 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
 export function JobSheet() {
   const me = useMe();
   const now = useTick();
-  const jobs = useStore((s) => s.data.jobs);
+  const allJobs = useStore((s) => s.data.jobs);
+  const stage = useStore((s) => s.data.stage);
   const jobStart = useStore((s) => s.jobStart);
   const jobFinish = useStore((s) => s.jobFinish);
   const shiftTime = useStore((s) => s.shiftTime);
   const { openSheet, closeSheet } = useOverlay();
   const [busy, setBusy] = useState<string | null>(null);
   if (!me) return null;
+  const jobs = jobsFor(stage, me, allJobs); const scores = scoresFor(stage, me);
 
   if (me.job) {
-    const j = jobs.find((x) => x.id === me.job!.id)!;
+    const j = allJobs.find((x) => x.id === me.job!.id);
+    if (!j) return <SheetTitle sub="아르바이트 정보를 찾을 수 없어요.">아르바이트</SheetTitle>;
     const el = now - me.job.start; const done = el >= JOB_MS;
     return (
       <>
@@ -135,7 +143,7 @@ export function JobSheet() {
                 <ResultSheet eyebrow={j.name} big={r.ok ? "성공" : "실패"} bigClass={r.ok ? "text-good" : "text-crit"}>
                   <p>{r.ok ? j.flavorW : j.flavorL}</p>
                   <p className="mt-2.5"><Pill tone="gold" className="tnum">+{money(r.amt)}</Pill></p>
-                  <p className="mt-2.5 text-[12.5px] text-muted">이번 성공 확률 {r.rate}% ({subject(j.subject).name} {GRADES[r.grade].k})</p>
+                  <p className="mt-2.5 text-[12.5px] text-muted">이번 성공 확률 {r.rate}% ({subjectName(j.subject)} {GRADES[r.grade].k})</p>
                 </ResultSheet>,
               );
             }}>완료하고 보상 받기</Button>
@@ -147,13 +155,14 @@ export function JobSheet() {
     );
   }
 
+  if (needsStage1Alloc(stage, me)) return <AllocNeeded charId={me.id} what="아르바이트" />;
   const left = jobLeft(me, now);
   return (
     <>
       <SheetTitle sub={<>시작하면 2시간 뒤에 완료할 수 있어요. 성공 확률은 관련 과목 성적으로 정해져요. 오늘 남은 횟수 <b className="text-ink">{left}</b>회{(me.inv.drink || 0) > 0 ? " · 솔리스 드링크로 +1 가능" : ""}</>}>아르바이트</SheetTitle>
       <div className="flex flex-col gap-2">
         {jobs.map((j) => {
-          const s = subject(j.subject); const g = gIdx(me.scores[j.subject]);
+          const s = { name: subjectName(j.subject) }; const g = gIdx(scores[j.subject] ?? 0);
           return (
             <button
               key={j.id}
@@ -169,6 +178,19 @@ export function JobSheet() {
           );
         })}
       </div>
+    </>
+  );
+}
+
+function AllocNeeded({ charId, what }: { charId: string; what: string }) {
+  const closeSheet = useOverlay((s) => s.closeSheet);
+  return (
+    <>
+      <SheetTitle sub={`5학년이 되면서 과목이 바뀌었어요. 1학년 때 쌓은 점수를 새 과목에 나눠야 ${what}를 할 수 있어요.`}>5학년 과목 분배가 필요해요</SheetTitle>
+      <SheetActions>
+        <Button variant="ghost" onClick={closeSheet}>나중에</Button>
+        <Link href={`/profile/${charId}/edit?stage=1`} onClick={closeSheet} className="inline-flex min-h-11 items-center justify-center rounded-full bg-gold px-4 font-semibold text-gold-ink">과목 분배하러 가기</Link>
+      </SheetActions>
     </>
   );
 }

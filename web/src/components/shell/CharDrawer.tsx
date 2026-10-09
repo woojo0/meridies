@@ -4,7 +4,8 @@ import { ChevronRight, MessageSquare, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { JOB_MS, STAGES, STUDY_MS, dorm as dormOf, subject } from "@/lib/constants";
+import { JOB_MS, STAGES, STUDY_MS, dorm as dormOf } from "@/lib/constants";
+import { subjectName } from "@/lib/curriculum";
 import { ago, cx, money } from "@/lib/format";
 import { useMe, useNow } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
@@ -107,7 +108,7 @@ export function CharDrawer() {
               {studyReady && me.studyJob && (
                 <button onClick={() => { closeDrawer(); openStudySheet(); }} className={rowCls}>
                   <span className="size-2 shrink-0 rounded-full bg-crit" />
-                  <span className="min-w-0 flex-1"><RowTitle>공부가 끝났어요</RowTitle><RowSub>{subject(me.studyJob.subject).name} · 결과를 확인하세요</RowSub></span>
+                  <span className="min-w-0 flex-1"><RowTitle>공부가 끝났어요</RowTitle><RowSub>{subjectName(me.studyJob.subject)} · 결과를 확인하세요</RowSub></span>
                 </button>
               )}
               {jobReady && (

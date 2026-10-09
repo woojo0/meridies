@@ -312,6 +312,7 @@ export const L = {
     if (stage > useStore.getState().data.stage) await setDoc(doc(fbDb(), `characters/${id}/private`, `stage${stage}`), data);
     else await updateDoc(doc(fbDb(), "characters", id), { [`profiles.${stage}`]: data });
   },
+  allocateStage1: (electives: string[], alloc: Record<string, number>, charId?: string) => call("allocateStage1", { electives, alloc, charId }).then(() => undefined),
   renameCharacter: (charId: string, name: string) => updateDoc(doc(fbDb(), "characters", charId), { name }),
   async loadPrivateProfiles(charId: string) {
     const out: Partial<Record<Stage, Profile>> = {};
@@ -374,7 +375,7 @@ export const L = {
     return r.id;
   },
   ration: () => call<undefined, { n: number }>("ration").then((r) => r.n),
-  studyStart: (subject: SubjectId, useJokbo: boolean) => call("studyStart", { subject, useJokbo }).then(() => null as string | null),
+  studyStart: (subject: string, useJokbo: boolean) => call("studyStart", { subject, useJokbo }).then(() => null as string | null),
   studyFinish: () => call<undefined, StudyResult>("studyFinish"),
   jobStart: (jobId: string) => call("jobStart", { jobId }).then(() => null as string | null),
   jobFinish: () => call<undefined, JobResult>("jobFinish"),
@@ -388,7 +389,7 @@ export const L = {
   enterDorm: (dorm: DormId) => call("useItem", { itemId: "key", dorm }).then(() => undefined),
   letterNew: (text: string) => call<{ text: string }, { result: "sent" | "lost" }>("letterSend", { text }).then((r) => r.result),
   letterReply: (threadId: string, text: string) => call<{ threadId: string; text: string }, { result: "sent" }>("letterReply", { threadId, text }).then((r) => r.result),
-  adjust: (charId: string, target: SubjectId | "money", n: number, why: string) => call<unknown, { label: string }>("adminAdjust", { charId, target, n, why }).then((r) => r.label),
+  adjust: (charId: string, target: string, n: number, why: string) => call<unknown, { label: string }>("adminAdjust", { charId, target, n, why }).then((r) => r.label),
   setStage: (stage: Stage) => call("setStage", { stage }).then(() => undefined),
   semester: () => call("closeSemester", { post: false }).then(() => undefined),
   postResults: () => call("closeSemester", { post: true }).then(() => undefined),

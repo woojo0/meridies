@@ -25,6 +25,10 @@ export interface Profile {
   nameSize?: number;
   /** 직접 추가하는 항목 (예: 포지션, 직업, 좋아하는 것) */
   extra?: { k: string; v: string }[];
+  /** BGM: 유튜브 링크 (선택) */
+  bgm?: string;
+  /** BGM 제목 (비우면 영상 제목) */
+  bgmTitle?: string;
   /** 세부 정보 (마크다운) */
   detail?: string;
   avatar?: string | null;
@@ -46,9 +50,15 @@ export interface Character {
   inv: Record<string, number>;
   profiles: Partial<Record<Stage, Profile>>;
   scores: Record<SubjectId, number>;
+  /** 5학년(1차 성장) 과목 점수. 분배 전이면 없음 */
+  scores1?: Record<string, number>;
+  /** 5학년 선택과목 id */
+  electives1?: string[];
+  /** 전환 전에 미리 제출한 5학년 분배 계획 */
+  alloc1?: { electives: string[]; alloc: Record<string, number> };
   tx: Tx[];
   study?: { day: string; n: number };
-  studyJob?: { subject: SubjectId; start: number; jokbo: boolean } | null;
+  studyJob?: { subject: string; start: number; jokbo: boolean } | null;
   job?: { id: string; start: number } | null;
   jobDay?: { day: string; n: number; bonus: number };
   ration?: { day: string };
@@ -130,7 +140,10 @@ export interface Item {
 export interface Job {
   id: string;
   name: string;
-  subject: SubjectId;
+  /** 1학년은 SubjectId, 5학년은 SUBJECTS1 id */
+  subject: string;
+  /** 0: 입학, 1: 1차 성장 */
+  stage?: number;
   desc: string;
   rates: number[];
   win: [number, number];
