@@ -80,7 +80,7 @@ export function ProfileView({ c: base }: { c: Character }) {
   const inlineBits = [p.gender, p.height, p.birthday].filter(Boolean);
   const nameLine = (
     <div className="flex flex-wrap items-baseline gap-x-2.5">
-      <h1 className="font-display leading-tight tracking-[.06em] max-lg:text-[26px]" style={desktop ? { fontSize: p.nameSize ?? 32 } : undefined}>{c.name}</h1>
+      <h1 className="max-w-full font-display leading-tight tracking-[.06em] [text-wrap:nowrap] max-lg:text-[26px] lg:truncate" style={desktop ? { fontSize: Math.min(36, Math.max(12, p.nameSize ?? 32)) } : undefined} title={c.name}>{c.name}</h1>
       {p.nameLatin && <span className="lat text-[18px] text-muted">{p.nameLatin}</span>}
       {p.nameNative && <span className="text-[15px] text-muted">{p.nameNative}</span>}
     </div>
