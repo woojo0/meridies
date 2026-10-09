@@ -26,7 +26,7 @@ export function LoginView() {
   useEffect(() => { if (hydrated && charId) router.replace(next); }, [hydrated, charId, next, router]);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[460px] flex-col px-5 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-10">
+    <div className="app-scale mx-auto flex min-h-dvh max-w-[460px] flex-col px-5 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-10">
       <Link href="/" className="flex items-center gap-2.5 self-start">
         <BrandMark size={26} />
         <span className="font-display text-[19px] font-semibold tracking-tight">메리디에스</span>

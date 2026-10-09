@@ -30,12 +30,12 @@ export function ShopView() {
       <ChipRow>{cats.map((c) => <Chip key={c} on={cat === c} onClick={() => setShopCat(c)}>{c}</Chip>)}</ChipRow>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {list.map((i) => (
-          <button key={i.id} onClick={() => openSheet(<ItemSheet id={i.id} />)} className="card group flex min-w-0 flex-col gap-1 p-3 text-left transition-transform hover:-translate-y-0.5">
-            <span className="mb-1.5 grid aspect-[5/4] w-full place-items-center rounded-xl bg-[linear-gradient(135deg,var(--sunk),var(--gold-soft))] text-gold">
+          <button key={i.id} onClick={() => openSheet(<ItemSheet id={i.id} />)} className="card group flex min-w-0 flex-col p-3 text-left transition-transform hover:-translate-y-0.5">
+            <span className="grid aspect-[5/4] w-full place-items-center rounded-xl border border-line bg-[linear-gradient(135deg,var(--sunk),var(--gold-soft))] text-gold">
               <ItemIcon icon={i.icon} size={38} strokeWidth={1.25} className="transition-transform group-hover:scale-110" />
             </span>
-            <span className="text-[14.5px] font-semibold leading-snug">{i.name}</span>
-            <span className="text-[12.5px] text-muted tnum">{money(i.price)}{i.stock >= 0 ? ` · 남은 ${i.stock}` : ""}{i.limit ? ` · 인당 ${i.limit}회` : ""}</span>
+            <span className="mt-2.5 px-1.5 text-[14px] font-semibold leading-snug">{i.name}</span>
+            <span className="mt-0.5 px-1.5 pb-1 text-[12px] text-muted tnum">{money(i.price)}{i.stock >= 0 ? ` · 남은 ${i.stock}` : ""}{i.limit ? ` · 인당 ${i.limit}회` : ""}</span>
           </button>
         ))}
       </div>

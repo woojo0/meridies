@@ -5,7 +5,7 @@ import { BrandMark } from "../ui/identity";
 /** 비회원도 볼 수 있는 문서(세계관·규칙) 공용 레이아웃. */
 export function PublicDoc({ title, eyebrow, src }: { title: string; eyebrow: string; src: string }) {
   return (
-    <div className="min-h-dvh">
+    <div className="app-scale min-h-dvh">
       <header className="sticky top-0 z-30 bg-bg/85 backdrop-blur-xl">
         <div className="mx-auto flex h-[62px] max-w-[780px] items-center justify-between px-5">
           <Link href="/" className="flex items-center gap-2.5">

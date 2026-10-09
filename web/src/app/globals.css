@@ -191,6 +191,11 @@ p { margin: 0; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+/* 데스크톱에서는 전체 UI를 한 단계 작게 (모바일 비율은 그대로) */
+@media (min-width: 900px) {
+  .app-scale { zoom: 0.9; }
+}
+
 /* ───────────── 유틸 ───────────── */
 @utility lat { font-family: var(--font-latin); font-style: italic; letter-spacing: 0.01em; }
 @utility tnum { font-variant-numeric: tabular-nums; }

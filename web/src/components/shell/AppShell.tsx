@@ -74,7 +74,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const pageTitle = title ?? TITLES[pathname] ?? "";
 
   return (
-    <div className="lg:pl-[var(--rail)]">
+    <div className="app-scale lg:pl-[var(--rail)]">
       <TopBar me={me} title={pageTitle} root={root} unread={unread} />
       <main
         className={cx(
