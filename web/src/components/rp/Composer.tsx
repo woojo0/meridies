@@ -34,6 +34,7 @@ export function Composer({ placeholder, onSend, offsetForTabBar, onTyping, typin
           </div>
         )}
         <PreviewImages srcs={img ? [img] : []} onRemove={() => setImg(null)} />
+        {text.length >= 1800 && <div className="mb-1 pr-2 text-right text-[11.5px] tnum text-muted">{text.length} / 2000</div>}
         <div className="card flex items-end gap-1.5 p-1.5 pl-1 shadow-float focus-within:border-gold/50">
           <IconButton label="이미지 첨부" onClick={() => (img ? toast("역극은 한 번에 이미지 1장까지예요.") : fileRef.current?.click())} className="text-gold">
             <ImagePlus size={22} strokeWidth={1.5} />
@@ -44,6 +45,7 @@ export function Composer({ placeholder, onSend, offsetForTabBar, onTyping, typin
             value={text}
             placeholder={placeholder}
             aria-label="역극 입력"
+            maxLength={2000}
             onChange={(e) => { setText(e.target.value); if (e.target.value) onTyping?.(); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, window.innerHeight * 0.4) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }}
             className="min-h-11 max-h-[40vh] min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 text-[16px] leading-normal placeholder:text-muted/70 focus:outline-none"

@@ -88,7 +88,7 @@ function EditMsgSheet({ roomId, m }: { roomId: string; m: Msg }) {
   return (
     <>
       <SheetTitle sub="수정하면 ‘수정됨’ 표시가 붙어요.">메시지 수정</SheetTitle>
-      <Textarea value={text} onChange={(e) => setText(e.target.value)} aria-label="메시지 내용" />
+      <Textarea value={text} maxLength={2000} onChange={(e) => setText(e.target.value)} aria-label="메시지 내용" />
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>
         <Button onClick={() => { if (!text.trim() && !m.image) { toast("내용을 써 주세요."); return; } rpEdit(roomId, m.id, text.trim()); closeSheet(); }}>저장</Button>

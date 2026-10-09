@@ -24,8 +24,8 @@ export function TalkSheet({ postId }: { postId: string }) {
       <div className="mb-3.5 rounded-r border-l-2 border-gold bg-sunk/60 px-3 py-2 text-sm">
         <b>{c.name}</b><br /><RpText text={p.text} />
       </div>
-      <Field label={`${me.name}의 첫 역극`} htmlFor="talk-in">
-        <Textarea id="talk-in" autoFocus placeholder="대사 (지문)" value={text} onChange={(e) => setText(e.target.value)} />
+      <Field label={`${me.name}의 첫 역극`} htmlFor="talk-in" hint={`${text.length} / 2000`}>
+        <Textarea id="talk-in" autoFocus maxLength={2000} className="min-h-[160px]" value={text} onChange={(e) => setText(e.target.value)} />
       </Field>
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>

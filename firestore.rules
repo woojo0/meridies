@@ -93,7 +93,8 @@ service cloud.firestore {
         allow create: if isMember()
           && getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.members.hasAny([myCharId()])
           && getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.status == 'open'
-          && request.resource.data.charId == myCharId();
+          && request.resource.data.charId == myCharId()
+          && request.resource.data.text is string && request.resource.data.text.size() <= 2000;
         allow update: if ownsChar(resource.data.charId) && unchanged(['charId', 'stage', 'at']);
         allow delete: if isAdmin();
       }
@@ -115,6 +116,7 @@ service cloud.firestore {
         allow read: if isMember() && (isAdmin() || canEnterDorm(dormRoomId));
         allow create: if isMember() && canEnterDorm(dormRoomId)
           && request.resource.data.charId == myCharId()
+          && request.resource.data.text is string && request.resource.data.text.size() <= 2000
           && get(/databases/$(database)/documents/dorms/$(dormRoomId)).data.open == true;
         allow update: if ownsChar(resource.data.charId) && unchanged(['charId', 'stage', 'at']);
         allow delete: if isAdmin();
