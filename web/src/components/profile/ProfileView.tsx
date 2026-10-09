@@ -7,7 +7,7 @@ import { GRADES, JOB_MS, RATION, SOLIS_LABEL, STAGES, STAGE_GRADE, STUDY_MS, SUB
 import { ago, cx, fmtDur, gIdx, money } from "@/lib/format";
 import { useDesktop, useMe, useTick } from "@/lib/hooks";
 import { useOverlay } from "@/lib/overlay";
-import { prof, useStore } from "@/lib/store";
+import { prof, useStore, type PrivateProfile } from "@/lib/store";
 import type { Character, Profile, Stage } from "@/lib/types";
 import { RoomList } from "../rp/RoomList";
 import { InvItemSheet } from "../shop/ItemSheet";
@@ -78,13 +78,25 @@ export function ProfileView({ c: base }: { c: Character }) {
     </>
   );
   const inlineBits = [p.gender, p.height, p.birthday].filter(Boolean);
+  const nameLine = (
+    <div className="flex flex-wrap items-baseline gap-x-2.5">
+      <h1 className="font-display text-[32px] leading-tight tracking-[.06em] max-lg:text-[26px]">{c.name}</h1>
+      {p.nameLatin && <span className="lat text-[18px] text-muted">{p.nameLatin}</span>}
+      {p.nameNative && <span className="text-[15px] text-muted">{p.nameNative}</span>}
+    </div>
+  );
+  const catchLine = p.catchphrase ? <span className="eyebrow mb-1 block">[ {p.catchphrase} ]</span> : null;
+  const quoteLine = p.quote ? <p className="mt-2 font-display text-[17px] leading-snug text-ink/85"><span className="text-gold">“</span> {p.quote} <span className="text-gold">”</span></p> : null;
+  const keywordChips = p.keywords?.length ? (
+    <div className="mt-3 flex flex-wrap gap-1.5">{p.keywords.map((k) => <span key={k} className="rounded-full bg-gold-soft px-2.5 py-0.5 text-[12px] text-gold">{k}</span>)}</div>
+  ) : null;
   const kvRows: [string, React.ReactNode][] = [
     ["나이", p.age || "-"], ["학년", STAGE_GRADE[st]], ["학부", <span key="d" className="inline-flex items-center gap-1.5"><Crest id={c.dorm} size={14} />{d.name}</span>], ["성격", p.pers || "-"],
     ...((p.extra ?? []).filter((x) => x.k.trim()).map((x) => [x.k, x.v || "-"] as [string, React.ReactNode])),
   ];
   const detailBlock = p.detail?.trim() ? (
     <section className="card mt-4 p-6 lg:p-8">
-      <span className="eyebrow">세부 정보</span>
+      <span className="eyebrow">기타</span>
       <div className="mt-3 text-[15px]"><Markdown text={p.detail} /></div>
     </section>
   ) : null;
@@ -120,13 +132,22 @@ export function ProfileView({ c: base }: { c: Character }) {
             <div className="relative flex items-start gap-6">
               <span className="shrink-0 rounded-full p-[3px] ring-1 ring-line"><Avatar c={c} stage={stage} size="xl" className="size-[104px]" /></span>
               <div className="min-w-0 flex-1">
-                <h1 className="font-display text-[32px] leading-tight tracking-[.06em]">{c.name}</h1>
-                {inlineBits.length > 0 && <div className="mt-1.5 flex flex-wrap gap-x-2 text-[14px] text-muted">{inlineBits.map((b, i) => <span key={i}>{i > 0 && <span className="mr-2 opacity-50">·</span>}{b}</span>)}</div>}
+                {catchLine}
+                {nameLine}
+                {quoteLine}
+                {inlineBits.length > 0 && <div className="mt-2 flex flex-wrap gap-x-2 text-[14px] text-muted">{inlineBits.map((b, i) => <span key={i}>{i > 0 && <span className="mr-2 opacity-50">·</span>}{b}</span>)}</div>}
                 <dl className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[14.5px]">
                   {kvRows.map(([k, v]) => (<div key={k} className="contents"><dt className="text-[12px] tracking-[.06em] text-muted">{k}</dt><dd className="m-0">{v}</dd></div>))}
                 </dl>
               </div>
             </div>
+            {(p.pers || keywordChips) && (
+              <div className="relative mt-5 border-t border-line pt-5">
+                <span className="eyebrow">성격</span>
+                {keywordChips}
+                {p.pers && <div className="mt-3 text-[15px]"><Markdown text={p.pers} /></div>}
+              </div>
+            )}
             <div className="relative mt-5 border-t border-line pt-5 text-[15px]">
               {p.text ? <Markdown text={p.text} /> : <span className="text-muted">아직 소개가 없어요.</span>}
             </div>
@@ -154,7 +175,8 @@ export function ProfileView({ c: base }: { c: Character }) {
         <div className="relative flex items-center gap-4">
           <span className="rounded-full p-[3px] ring-1 ring-line"><Avatar c={c} stage={stage} size="lg" className="size-[76px]" /></span>
           <div className="min-w-0">
-            <h1 className="text-[26px] leading-tight">{c.name}</h1>
+            {catchLine}
+            {nameLine}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
               <DormTag c={c} stage={stage} />
               <Pill tone="gold">{STAGES[prof(c, stage).stage]} · {STAGE_GRADE[prof(c, stage).stage]}</Pill>
@@ -162,6 +184,7 @@ export function ProfileView({ c: base }: { c: Character }) {
             </div>
           </div>
         </div>
+        {quoteLine && <div className="relative">{quoteLine}</div>}
         <div className="relative mt-4 grid grid-cols-3 gap-2 text-center">
           {[["옵티메", `${opt}개`], ["지갑", money(c.money)], ["역극", `${roomsN}개`]].map(([k, v]) => (
             <div key={k} className="rounded-xl bg-sunk/70 px-2 py-2.5"><span className="block text-[11px] tracking-[.08em] text-muted">{k}</span><b className="tnum block font-display text-[15px]">{v}</b></div>
@@ -181,7 +204,14 @@ export function ProfileView({ c: base }: { c: Character }) {
             <dl className="mb-4 grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-2">
               {kvRows.map(([k, v]) => (<div key={k} className="contents"><dt className="pt-0.5 text-[12.5px] tracking-[.04em] text-muted">{k}</dt><dd className="m-0">{v}</dd></div>))}
             </dl>
-            <div className="border-t border-line pt-4 text-[15px]">{p.text ? <Markdown text={p.text} /> : <span className="text-muted">아직 소개가 없어요.</span>}</div>
+            {(p.pers || keywordChips) && (
+              <div className="border-t border-line pt-4">
+                <span className="eyebrow">성격</span>
+                {keywordChips}
+                {p.pers && <div className="mt-3 text-[15px]"><Markdown text={p.pers} /></div>}
+              </div>
+            )}
+            <div className="mt-4 border-t border-line pt-4 text-[15px]">{p.text ? <Markdown text={p.text} /> : <span className="text-muted">아직 소개가 없어요.</span>}</div>
             {editBtn && <div className="mt-5">{editBtn}</div>}
           </div>
           {detailBlock}
@@ -272,16 +302,24 @@ function InvPanel({ c, mine, items, now, openSheet }: { c: Character; mine: bool
   );
 }
 
-/** 운영자에게만 보이는 비밀 설정. 본인과 운영자에게만 카드가 보여요. */
+/** 비공개 프로필(트리거 요소·비밀 설정·성장 IF). 본인과 운영자에게만 보여요. */
 function SecretCard({ charId }: { charId: string }) {
-  const loadSecret = useStore((s) => s.loadSecret);
-  const [text, setText] = useState<string | null>(null);
-  useEffect(() => { loadSecret(charId).then((t) => setText(t ?? "")).catch(() => setText("")); }, [charId, loadSecret]);
-  if (!text) return null;
+  const loadPrivate = useStore((s) => s.loadPrivate);
+  const [pv, setPv] = useState<PrivateProfile | null>(null);
+  useEffect(() => { loadPrivate(charId).then(setPv).catch(() => setPv(null)); }, [charId, loadPrivate]);
+  if (!pv || !(pv.secret || pv.trigger || pv.growthIf)) return null;
+  const rows: [string, string][] = [["트리거 요소", pv.trigger], ["비밀 설정", pv.secret], ["성장 IF", pv.growthIf]];
   return (
     <section className="card mt-4 border-dashed p-6 lg:p-8">
-      <span className="eyebrow">비밀 설정 · 운영자만 볼 수 있어요</span>
-      <div className="mt-3 text-[15px]"><Markdown text={text} /></div>
+      <span className="eyebrow">비공개 프로필 · 본인과 운영자만 볼 수 있어요</span>
+      <div className="mt-3 flex flex-col gap-5">
+        {rows.filter(([, v]) => v.trim()).map(([k, v]) => (
+          <div key={k}>
+            <span className="mb-1.5 block text-[12.5px] font-semibold tracking-[.04em] text-muted">{k}</span>
+            <div className="text-[15px]"><Markdown text={v} /></div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

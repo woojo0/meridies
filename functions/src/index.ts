@@ -104,13 +104,13 @@ const h_seedDefaults = handler(async (req) => {
 });
 
 /* ───────── 캐릭터 등록 ───────── */
-type StageProfileIn = { pers?: string; text?: string; detail?: string; age?: string; avatar?: string | null; body?: string | null };
+type StageProfileIn = { pers?: string; text?: string; detail?: string; age?: string; avatar?: string | null; body?: string | null; quote?: string; catchphrase?: string; nameLatin?: string; nameNative?: string; keywords?: string[] };
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 const url = (v: unknown) => (typeof v === "string" && /^https:\/\/(firebasestorage\.googleapis\.com|storage\.googleapis\.com)\//.test(v) ? v : null);
-const h_createCharacter = handler<{ name: string; dorm: string; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Record<string, StageProfileIn>; secret?: string }>(async (req) => {
+const h_createCharacter = handler<{ name: string; dorm: string; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Record<string, StageProfileIn>; secret?: string; private?: { secret?: string; trigger?: string; growthIf?: string } }>(async (req) => {
   if (!req.auth) throw new HttpsError("unauthenticated", "로그인이 필요해요.");
   const uid = req.auth.uid;
-  const { name, dorm, gender, height, birthday, scores, profiles: pin = {}, secret } = req.data;
+  const { name, dorm, gender, height, birthday, scores, profiles: pin = {}, secret, private: priv } = req.data;
   if (!name?.trim() || name.length > 20) throw new HttpsError("invalid-argument", "이름은 1~20자예요.");
   if (!DORMS.includes(dorm as (typeof DORMS)[number])) throw new HttpsError("invalid-argument", "학부가 올바르지 않아요.");
   if (!Array.isArray(scores) || scores.length !== 9 || scores.some((v) => !Number.isInteger(v) || v < 0)) throw new HttpsError("invalid-argument", "성적 분배가 올바르지 않아요.");
@@ -133,7 +133,9 @@ const h_createCharacter = handler<{ name: string; dorm: string; gender: string; 
       if (!filled) continue;
       const prof = {
         gender: str(gender, 20), height: str(height, 20), birthday: str(birthday, 20), age: str(p.age, 20) || ages[+st],
-        pers: str(p.pers, 200), text: str(p.text, 5000), detail: str(p.detail, 10000), extra: [],
+        pers: str(p.pers, 3000), text: str(p.text, 5000), detail: str(p.detail, 10000), extra: [],
+        quote: str(p.quote, 20), catchphrase: str(p.catchphrase, 20), nameLatin: str(p.nameLatin, 60), nameNative: str(p.nameNative, 60),
+        keywords: Array.isArray(p.keywords) ? p.keywords.filter((k) => typeof k === "string").map((k) => k.slice(0, 20)).slice(0, 12) : [],
         avatar: url(p.avatar), body: url(p.body),
       };
       if (+st > curStage) privateProfiles[st] = prof; else profiles[st] = prof;
@@ -146,7 +148,8 @@ const h_createCharacter = handler<{ name: string; dorm: string; gender: string; 
       createdAt: Date.now(),
     });
     tx$(tx, ref.id, "입학 지원금", START_MONEY);
-    if (typeof secret === "string" && secret.trim()) tx.set(ref.collection("private").doc("secret"), { text: secret.slice(0, 10000), updatedAt: Date.now() });
+    const pv = { text: str(priv?.secret ?? secret, 10000), trigger: str(priv?.trigger, 3000), growthIf: str(priv?.growthIf, 5000), updatedAt: Date.now() };
+    if (pv.text || pv.trigger || pv.growthIf) tx.set(ref.collection("private").doc("secret"), pv);
     for (const [st, prof] of Object.entries(privateProfiles)) tx.set(ref.collection("private").doc(`stage${st}`), prof as Record<string, unknown>);
     tx.set(uref, { charId: ref.id }, { merge: true });
     return { id: ref.id };

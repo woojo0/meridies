@@ -18,8 +18,10 @@ export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, n
 export interface StudyResult { subject: SubjectId; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
 export interface JobResult { jobId: string; ok: boolean; amt: number; rate: number; grade: number }
 export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null }
-export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null };
-export interface NewCharacter { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Partial<Record<"0" | "1" | "2", StageProfileIn>>; secret?: string }
+export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null; quote?: string; catchphrase?: string; nameLatin?: string; nameNative?: string; keywords?: string[] };
+export interface NewCharacter { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Partial<Record<"0" | "1" | "2", StageProfileIn>>; secret?: string; private?: PrivateProfile }
+/** 비공개 프로필: 운영자와 본인만. */
+export interface PrivateProfile { secret: string; trigger: string; growthIf: string }
 export interface DocEntry { text: string; updatedAt: number; summary?: string }
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
 
@@ -34,6 +36,7 @@ interface State {
   myTx: Tx[];
   liveError: string | null;
   secrets: Record<string, string>;
+  privates: Record<string, PrivateProfile>;
   /** 운영자가 고친 문서(세계관·편람·규칙). 없으면 기본 원문을 써요. */
   docTexts: Record<string, DocEntry>;
 
@@ -81,6 +84,8 @@ interface State {
 
   saveProfile: (stage: Stage, p: Profile, charId?: string) => Promise<void>;
   loadSecret: (charId: string) => Promise<string | null>;
+  loadPrivate: (charId: string) => Promise<PrivateProfile>;
+  savePrivate: (charId: string, p: PrivateProfile) => Promise<void>;
   /** 아직 공개 전인 단계 프로필(본인·운영자만). */
   loadPrivateProfiles: (charId: string) => Promise<Partial<Record<Stage, Profile>>>;
   saveSecret: (charId: string, text: string) => Promise<void>;
@@ -137,6 +142,7 @@ export const useStore = create<State>()(
         myTx: [],
         liveError: null,
         secrets: {},
+        privates: {},
         docTexts: {},
 
         now: () => Date.now() + get().shift,
@@ -303,6 +309,8 @@ export const useStore = create<State>()(
         saveProfile: async (stage, p, charId) => { if (LIVE) return L().saveProfile(stage, p, charId); set((s) => { const m = charId ? s.data.chars.find((c) => c.id === charId) : mine(s.data); if (m) m.profiles[stage] = p; }); },
         loadSecret: async (charId) => { if (LIVE) return L().loadSecret(charId); return get().secrets[charId] ?? ""; },
         loadPrivateProfiles: async (charId) => (LIVE ? L().loadPrivateProfiles(charId) : {}),
+        loadPrivate: async (charId) => { if (LIVE) return L().loadPrivate(charId); return get().privates[charId] ?? { secret: get().secrets[charId] ?? "", trigger: "", growthIf: "" }; },
+        savePrivate: async (charId, p) => { if (LIVE) return L().savePrivate(charId, p); set((s) => { s.privates[charId] = p; s.secrets[charId] = p.secret; }); },
         saveSecret: async (charId, text) => { if (LIVE) return L().saveSecret(charId, text); set((s) => { s.secrets[charId] = text; }); },
         createCharacter: async (nc) => {
           if (LIVE) return L().createCharacter(nc);
@@ -313,12 +321,13 @@ export const useStore = create<State>()(
           (["0", "1", "2"] as const).forEach((st, i) => {
             const p = pin[st] ?? {};
             if (st !== "0" && !(p.pers || p.text || p.detail || p.avatar || p.body)) return;
-            profiles[i as Stage] = { gender, height, birthday, age: ages[i], pers: p.pers ?? "", text: p.text ?? "", detail: p.detail ?? "", avatar: p.avatar ?? null, body: p.body ?? null };
+            profiles[i as Stage] = { gender, height, birthday, age: ages[i], pers: p.pers ?? "", text: p.text ?? "", detail: p.detail ?? "", avatar: p.avatar ?? null, body: p.body ?? null, quote: p.quote ?? "", catchphrase: p.catchphrase ?? "", nameLatin: p.nameLatin ?? "", nameNative: p.nameNative ?? "", keywords: p.keywords ?? [] };
           });
           set((s) => {
             s.data.chars.push({ id, name, dorm, owner: "me", money: START_MONEY, inv: {}, profiles, scores: scoresFrom(scores), tx: [{ at: get().now(), text: "입학 지원금", amt: START_MONEY }] });
             s.session.charId = id;
             if (secret?.trim()) s.secrets[id] = secret;
+            if (nc.private) s.privates[id] = nc.private;
           });
           return id;
         },
@@ -389,7 +398,7 @@ export const useStore = create<State>()(
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
       // 실제 서버 모드에서는 화면 설정만 저장하고 데이터는 Firestore에서 받아요.
-      partialize: (s) => (LIVE ? { ui: s.ui } : { data: s.data, session: s.session, shift: s.shift, ui: s.ui, secrets: s.secrets, docTexts: s.docTexts }),
+      partialize: (s) => (LIVE ? { ui: s.ui } : { data: s.data, session: s.session, shift: s.shift, ui: s.ui, secrets: s.secrets, privates: s.privates, docTexts: s.docTexts }),
       migrate: () => ({ data: seed(), session: emptySession(), shift: 0, ui: todayUI() }),
       onRehydrateStorage: () => () => { if (!LIVE) useStore.setState({ hydrated: true }); },
     },

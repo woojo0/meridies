@@ -7,9 +7,20 @@ export interface Profile {
   gender: string;
   age: string;
   height: string;
+  /** 성격 서술 */
   pers: string;
+  /** 소개(마크다운) — 신청서의 '기타'와 함께 공개 */
   text: string;
   birthday?: string;
+  /** “ 한마디 ” (10자 이내) */
+  quote?: string;
+  /** [ 캐치프레이즈 ] (10자 이내) */
+  catchphrase?: string;
+  /** 영문 이름 / 모국어 이름 */
+  nameLatin?: string;
+  nameNative?: string;
+  /** 성격 키워드 */
+  keywords?: string[];
   /** 직접 추가하는 항목 (예: 포지션, 직업, 좋아하는 것) */
   extra?: { k: string; v: string }[];
   /** 세부 정보 (마크다운) */

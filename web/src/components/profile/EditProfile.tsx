@@ -1,16 +1,15 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- 사용자가 올린 미리보기 이미지 */
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { STAGES, STAGE_GRADE } from "@/lib/constants";
-import { shrinkImage } from "@/lib/format";
 import { useMe } from "@/lib/hooks";
 import { toast } from "@/lib/overlay";
-import { prof, useStore } from "@/lib/store";
+import { prof, useStore, type PrivateProfile } from "@/lib/store";
 import type { Character, Profile, Stage } from "@/lib/types";
 import { Markdown } from "../ui/Markdown";
 import { Button, Chip, ChipRow, Empty, Field, Input, Note, SectionHead, Textarea } from "../ui/primitives";
+import { ImagePick, KeywordsInput } from "./formBits";
 
 /** 프로필 수정 페이지: /profile/[id]/edit?stage=N. 본인(또는 운영자)만. */
 export function EditProfile() {
@@ -20,63 +19,56 @@ export function EditProfile() {
   const admin = useStore((s) => s.session.admin);
   const communityStage = useStore((s) => s.data.stage);
   const c = useStore((s) => s.data.chars.find((x) => x.id === id));
-  const loadSecret = useStore((s) => s.loadSecret);
+  const loadPrivate = useStore((s) => s.loadPrivate);
+  const loadPrivateProfiles = useStore((s) => s.loadPrivateProfiles);
 
   const mine = me?.id === id;
   const maxStage = 2;
   const initStage = Math.max(0, Math.min(maxStage, Number(sp.get("stage") ?? communityStage))) as Stage;
   const [stage, setStage] = useState<Stage>(initStage);
-  const [secret, setSecret] = useState<string | null>(null);
-  const loadPrivateProfiles = useStore((s) => s.loadPrivateProfiles);
-  const [priv, setPriv] = useState<Partial<Record<Stage, Profile>> | null>(null);
+  const [priv, setPriv] = useState<PrivateProfile | null>(null);
+  const [privProfiles, setPrivProfiles] = useState<Partial<Record<Stage, Profile>> | null>(null);
   useEffect(() => {
     if (!c || !(mine || admin)) return;
-    loadPrivateProfiles(c.id).then(setPriv).catch(() => setPriv({}));
-  }, [c, mine, admin, loadPrivateProfiles]);
-  useEffect(() => {
-    if (!c || !(mine || admin)) return;
-    loadSecret(c.id).then((s) => setSecret(s ?? "")).catch(() => setSecret(""));
-  }, [c, mine, admin, loadSecret]);
+    loadPrivate(c.id).then(setPriv).catch(() => setPriv({ secret: "", trigger: "", growthIf: "" }));
+    loadPrivateProfiles(c.id).then(setPrivProfiles).catch(() => setPrivProfiles({}));
+  }, [c, mine, admin, loadPrivate, loadPrivateProfiles]);
 
   if (!c) return <Empty className="py-16">캐릭터를 찾을 수 없어요.</Empty>;
   if (!(mine || admin)) return <Empty className="py-16">본인 캐릭터만 수정할 수 있어요.</Empty>;
-  if (priv === null) return null;
-  const merged: Character = { ...c, profiles: { ...c.profiles, ...priv } };
-  return <EditForm key={stage} c={merged} stage={stage} setStage={setStage} maxStage={maxStage} communityStage={communityStage} secret={secret} setSecret={setSecret} />;
+  if (priv === null || privProfiles === null) return null;
+  const merged: Character = { ...c, profiles: { ...c.profiles, ...privProfiles } };
+  return <EditForm key={stage} c={merged} stage={stage} setStage={setStage} maxStage={maxStage} communityStage={communityStage} priv={priv} setPriv={setPriv} />;
 }
 
-function EditForm({ c, stage, setStage, maxStage, communityStage, secret, setSecret }: { c: Character; stage: Stage; setStage: (s: Stage) => void; maxStage: number; communityStage: number; secret: string | null; setSecret: (s: string) => void }) {
+function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv }: { c: Character; stage: Stage; setStage: (s: Stage) => void; maxStage: number; communityStage: number; priv: PrivateProfile; setPriv: (p: PrivateProfile) => void }) {
   const router = useRouter();
   const saveProfile = useStore((s) => s.saveProfile);
-  const saveSecret = useStore((s) => s.saveSecret);
-  // 단계별 저장값(없으면 이전 단계 복사)으로 시작해요. 단계가 바뀌면 key로 다시 마운트돼요.
-  const [p, setP] = useState<Profile | null>(() => {
+  const savePrivate = useStore((s) => s.savePrivate);
+  const [p, setP] = useState<Profile>(() => {
     const base = c.profiles[stage] ?? { ...prof(c, stage).p, avatar: null, body: null, age: ["11세", "15세", "성인"][stage] };
-    return { ...base, extra: base.extra ?? [] };
+    return { ...base, extra: base.extra ?? [], keywords: base.keywords ?? [] };
   });
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
-  if (!p) return null;
 
-  const set = (k: keyof Profile) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setP((x) => (x ? { ...x, [k]: e.target.value } : x));
-  const pick = (k: "avatar" | "body") => async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
-    try { const src = await shrinkImage(f); setP((x) => (x ? { ...x, [k]: src } : x)); } catch { toast("이미지를 읽지 못했어요."); }
-  };
+  const set = (k: keyof Profile) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setP((x) => ({ ...x, [k]: e.target.value }));
   const extras = p.extra ?? [];
-  const setExtra = (i: number, k: "k" | "v", val: string) => setP((x) => (x ? { ...x, extra: (x.extra ?? []).map((e, j) => (j === i ? { ...e, [k]: val } : e)) } : x));
+  const setExtra = (i: number, k: "k" | "v", val: string) => setP((x) => ({ ...x, extra: (x.extra ?? []).map((e, j) => (j === i ? { ...e, [k]: val } : e)) }));
 
   const save = async () => {
+    if ((p.quote ?? "").length > 10 || (p.catchphrase ?? "").length > 10) { toast("한마디와 캐치프레이즈는 10자 이내예요."); return; }
     setBusy(true);
     try {
       await saveProfile(stage, { ...p, extra: extras.filter((e) => e.k.trim() || e.v.trim()) }, c.id);
-      if (secret !== null) {
-        try { await saveSecret(c.id, secret); } catch { toast("프로필은 저장했지만 비밀 설정은 저장하지 못했어요(권한 규칙 배포 필요)."); router.push(`/profile/${c.id}`); return; }
-      }
+      try { await savePrivate(c.id, priv); } catch { toast("프로필은 저장했지만 비공개 항목은 저장하지 못했어요(권한 규칙 배포 필요)."); router.push(`/profile/${c.id}`); return; }
       toast("프로필을 저장했어요.");
       router.push(`/profile/${c.id}`);
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
+
+  const md = (v: string, id: string, min: string, onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void) =>
+    preview ? <div className={`field-input ${min} text-[15px]`}><Markdown text={v} /></div> : <Textarea id={id} className={min} value={v} onChange={onChange} />;
 
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-7">
@@ -92,60 +84,77 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, secret, setSec
           {stage > communityStage && <Note>운영자가 {STAGES[stage]}로 전환하기 전까지 나와 운영자만 볼 수 있어요(비공개 저장). 미리 써 두면 전환 때 자동으로 공개돼요.</Note>}
         </div>
 
-        <SectionHead title="이미지" aside="두상 · 전신" />
+        <SectionHead title="한 줄" aside="각 10자 이내" />
+        <div className="card p-5 pb-1">
+          <div className="grid grid-cols-2 gap-x-3">
+            <Field label="“ 한마디 ”" htmlFor="pf-q" hint={`${(p.quote ?? "").length}/10`}><Input id="pf-q" maxLength={10} value={p.quote ?? ""} onChange={set("quote")} /></Field>
+            <Field label="[ 캐치프레이즈 ]" htmlFor="pf-c" hint={`${(p.catchphrase ?? "").length}/10`}><Input id="pf-c" maxLength={10} value={p.catchphrase ?? ""} onChange={set("catchphrase")} /></Field>
+          </div>
+        </div>
+
+        <SectionHead title="외관" aside="두상 · 전신" />
         <div className="grid grid-cols-2 gap-3">
-          <label className="card flex cursor-pointer flex-col items-center gap-2 p-5 text-center text-xs text-muted hover:border-gold">
-            {p.avatar ? <img src={p.avatar} alt="두상" className="size-24 rounded-full object-cover" /> : <span className="grid size-24 place-items-center rounded-full bg-sunk">두상</span>}
-            두상 {p.avatar ? "바꾸기" : "올리기"}
-            <input type="file" accept="image/*" hidden onChange={pick("avatar")} />
-          </label>
-          <label className="card flex cursor-pointer flex-col items-center gap-2 p-5 text-center text-xs text-muted hover:border-gold">
-            {p.body ? <img src={p.body} alt="전신" className="h-24 w-auto rounded-lg object-cover" /> : <span className="grid h-24 w-14 place-items-center rounded-lg bg-sunk">전신</span>}
-            전신 {p.body ? "바꾸기" : "올리기"}
-            <input type="file" accept="image/*" hidden onChange={pick("body")} />
-          </label>
+          <ImagePick label="두상" value={p.avatar ?? null} round onChange={(src) => setP((x) => ({ ...x, avatar: src }))} />
+          <ImagePick label="전신" value={p.body ?? null} onChange={(src) => setP((x) => ({ ...x, body: src }))} />
         </div>
 
         <SectionHead title="기본 정보" />
         <div className="card p-5 pb-1">
+          <div className="grid grid-cols-2 gap-x-3">
+            <Field label="영문 이름" htmlFor="pf-nl"><Input id="pf-nl" value={p.nameLatin ?? ""} onChange={set("nameLatin")} /></Field>
+            <Field label="모국어 이름 (선택)" htmlFor="pf-nn"><Input id="pf-nn" value={p.nameNative ?? ""} onChange={set("nameNative")} /></Field>
+          </div>
           <div className="grid grid-cols-3 gap-x-3">
             <Field label="성별" htmlFor="pf-g"><Input id="pf-g" value={p.gender} onChange={set("gender")} /></Field>
             <Field label="키" htmlFor="pf-h"><Input id="pf-h" value={p.height} onChange={set("height")} /></Field>
-            <Field label="생일" htmlFor="pf-b"><Input id="pf-b" placeholder="817.09.21" value={p.birthday ?? ""} onChange={set("birthday")} /></Field>
+            <Field label="생일" htmlFor="pf-b"><Input id="pf-b" value={p.birthday ?? ""} onChange={set("birthday")} /></Field>
           </div>
-          <div className="grid grid-cols-2 gap-x-3">
-            <Field label="나이" htmlFor="pf-a"><Input id="pf-a" value={p.age} onChange={set("age")} /></Field>
-            <Field label="성격" htmlFor="pf-p"><Input id="pf-p" value={p.pers} onChange={set("pers")} /></Field>
-          </div>
+          <Field label="나이" htmlFor="pf-a" hint="입학 단계는 11세로 통일"><Input id="pf-a" value={p.age} onChange={set("age")} /></Field>
           <div className="mb-4">
             <span className="mb-1.5 block text-[13px] font-semibold text-muted">추가 항목 <span className="font-normal">· 포지션, 직업, 좋아하는 것 등</span></span>
             <div className="flex flex-col gap-2">
               {extras.map((e, i) => (
                 <div key={i} className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
-                  <Input placeholder="항목" value={e.k} onChange={(ev) => setExtra(i, "k", ev.target.value)} aria-label={`추가 항목 ${i + 1} 이름`} />
-                  <Input placeholder="내용" value={e.v} onChange={(ev) => setExtra(i, "v", ev.target.value)} aria-label={`추가 항목 ${i + 1} 내용`} />
-                  <button type="button" aria-label="항목 빼기" onClick={() => setP((x) => (x ? { ...x, extra: (x.extra ?? []).filter((_, j) => j !== i) } : x))} className="grid size-11 place-items-center rounded-full text-muted hover:bg-sunk hover:text-crit">×</button>
+                  <Input value={e.k} onChange={(ev) => setExtra(i, "k", ev.target.value)} aria-label={`추가 항목 ${i + 1} 이름`} />
+                  <Input value={e.v} onChange={(ev) => setExtra(i, "v", ev.target.value)} aria-label={`추가 항목 ${i + 1} 내용`} />
+                  <button type="button" aria-label="항목 빼기" onClick={() => setP((x) => ({ ...x, extra: (x.extra ?? []).filter((_, j) => j !== i) }))} className="grid size-11 place-items-center rounded-full text-muted hover:bg-sunk hover:text-crit">×</button>
                 </div>
               ))}
-              <Button type="button" variant="ghost" size="sm" className="self-start" disabled={extras.length >= 12} onClick={() => setP((x) => (x ? { ...x, extra: [...(x.extra ?? []), { k: "", v: "" }] } : x))}>+ 항목 추가</Button>
+              <Button type="button" variant="ghost" size="sm" className="self-start" disabled={extras.length >= 12} onClick={() => setP((x) => ({ ...x, extra: [...(x.extra ?? []), { k: "", v: "" }] }))}>+ 항목 추가</Button>
             </div>
           </div>
         </div>
 
-        <SectionHead title="소개" aside={<button type="button" className="text-gold underline-offset-2 hover:underline" onClick={() => setPreview((v) => !v)}>{preview ? "편집" : "미리보기"}</button>} />
+        <SectionHead title="성격" aside={<button type="button" className="text-gold underline-offset-2 hover:underline" onClick={() => setPreview((v) => !v)}>{preview ? "편집" : "미리보기"}</button>} />
         <div className="card p-5 pb-1">
-          <Field label="소개" htmlFor="pf-t" hint="마크다운을 쓸 수 있어요: **굵게**, *기울임*, # 제목, > 인용, - 목록, --- 구분선">
-            {preview ? <div className="field-input min-h-[200px] text-[15px]"><Markdown text={p.text} /></div> : <Textarea id="pf-t" className="min-h-[200px]" value={p.text} onChange={set("text")} />}
+          <Field label="키워드" htmlFor="pf-kw" hint="3개 이상. 쉼표나 Enter로 구분">
+            <KeywordsInput id="pf-kw" value={p.keywords ?? []} onChange={(kw) => setP((x) => ({ ...x, keywords: kw }))} />
           </Field>
-          <Field label="세부 정보" htmlFor="pf-d" hint="관계, 설정 등 긴 내용. 비워 두면 표시되지 않아요.">
-            {preview ? <div className="field-input min-h-[200px] text-[15px]"><Markdown text={p.detail ?? ""} /></div> : <Textarea id="pf-d" className="min-h-[240px]" value={p.detail ?? ""} onChange={set("detail")} />}
+          <Field label="서술" htmlFor="pf-p" hint={`공백 미포함 300자 이상 · 현재 ${(p.pers ?? "").replace(/\s/g, "").length}자`}>
+            {md(p.pers, "pf-p", "min-h-[200px]", set("pers"))}
           </Field>
         </div>
 
-        <SectionHead title="비밀 설정" aside="운영자만 볼 수 있어요" />
+        <SectionHead title="소개 · 기타" />
         <div className="card p-5 pb-1">
-          <Field label="운영자에게만 보이는 설정" htmlFor="pf-secret" hint="다른 멤버에게는 보이지 않아요. 단계와 상관없이 하나예요. 마크다운 가능.">
-            {secret === null ? <div className="field-input min-h-[120px] text-muted">불러오는 중…</div> : preview ? <div className="field-input min-h-[120px] text-[15px]"><Markdown text={secret} /></div> : <Textarea id="pf-secret" className="min-h-[140px]" value={secret} onChange={(e) => setSecret(e.target.value)} />}
+          <Field label="소개" htmlFor="pf-t" hint="마크다운: **굵게**, *기울임*, # 제목, > 인용, - 목록, --- 구분선">
+            {md(p.text, "pf-t", "min-h-[200px]", set("text"))}
+          </Field>
+          <Field label="기타" htmlFor="pf-d" hint="생일, 습관, 마법적 재능, 입학 전 생활 환경 등 자유롭게">
+            {md(p.detail ?? "", "pf-d", "min-h-[220px]", set("detail"))}
+          </Field>
+        </div>
+
+        <SectionHead title="비공개 프로필" aside="본인과 운영자만 볼 수 있어요" />
+        <div className="card border-dashed p-5 pb-1">
+          <Field label="트리거 요소" htmlFor="pf-tr" hint="역극에서 피해야 할 요소. 운영진 참고용">
+            {md(priv.trigger, "pf-tr", "min-h-[100px]", (e) => setPriv({ ...priv, trigger: e.target.value }))}
+          </Field>
+          <Field label="비밀 설정" htmlFor="pf-secret" hint="커뮤니티 수위표를 준수해 공개되지 않는 설정. 비워 둘 수 있어요">
+            {md(priv.secret, "pf-secret", "min-h-[160px]", (e) => setPriv({ ...priv, secret: e.target.value }))}
+          </Field>
+          <Field label="성장 IF" htmlFor="pf-gi" hint="차후 성장 방향성. 러닝 중 변경은 운영진과 논의">
+            {md(priv.growthIf, "pf-gi", "min-h-[160px]", (e) => setPriv({ ...priv, growthIf: e.target.value }))}
           </Field>
         </div>
       </div>

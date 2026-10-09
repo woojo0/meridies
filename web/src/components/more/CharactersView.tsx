@@ -46,6 +46,7 @@ export function CharactersView() {
                   <DormDot id={c.dorm} className="size-2" />
                 </div>
                 <div className="mt-0.5 truncate text-[11.5px] text-muted">{bits.length ? bits.join(" · ") : "프로필 준비 중"}</div>
+                {p.catchphrase && <div className="mt-0.5 truncate text-[11px] text-gold">[ {p.catchphrase} ]</div>}
               </div>
             </Link>
           );

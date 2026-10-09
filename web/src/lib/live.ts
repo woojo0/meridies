@@ -15,7 +15,7 @@ import { seed } from "./seed";
 import { call, fbAuth, fbDb, fbStorage } from "./firebase";
 import { uid as mkId } from "./format";
 import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, SubjectId, Thread } from "./types";
-import { useStore, type JobResult, type NewCharacter, type StudyResult } from "./store";
+import { useStore, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
 
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
 
@@ -279,6 +279,8 @@ export const L = {
     return out;
   },
   async loadSecret(charId: string) { const s = await getDoc(doc(fbDb(), `characters/${charId}/private`, "secret")); return (s.data()?.text as string | undefined) ?? null; },
+  async loadPrivate(charId: string): Promise<PrivateProfile> { const s = await getDoc(doc(fbDb(), `characters/${charId}/private`, "secret")); const d = (s.data() ?? {}) as { text?: string; trigger?: string; growthIf?: string }; return { secret: d.text ?? "", trigger: d.trigger ?? "", growthIf: d.growthIf ?? "" }; },
+  savePrivate: (charId: string, p: PrivateProfile) => setDoc(doc(fbDb(), `characters/${charId}/private`, "secret"), { text: p.secret, trigger: p.trigger, growthIf: p.growthIf, updatedAt: now() }, { merge: true }),
   saveSecret: (charId: string, text: string) => setDoc(doc(fbDb(), `characters/${charId}/private`, "secret"), { text, updatedAt: now() }, { merge: true }),
   markNotif: (id: string) => updateDoc(doc(fbDb(), "notifs", id), { read: true }),
   markLetterRead: async (threadId: string, idx: number) => {

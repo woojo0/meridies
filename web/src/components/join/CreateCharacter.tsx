@@ -1,13 +1,13 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- 사용자가 올린 미리보기 이미지 */
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DORMS, GRADES, KW_MAX_ALLOC, STAGES, STAGE_GRADE, SUBJECTS, TOTAL_ALLOC } from "@/lib/constants";
 import { LIVE } from "@/lib/firebase";
-import { cx, gIdx, shrinkImage } from "@/lib/format";
+import { cx, gIdx } from "@/lib/format";
 import { toast } from "@/lib/overlay";
-import { useStore, type StageProfileIn } from "@/lib/store";
+import { useStore, type PrivateProfile, type StageProfileIn } from "@/lib/store";
+import { ImagePick, KeywordsInput } from "../profile/formBits";
 import type { DormId } from "@/lib/types";
 import { Crest } from "../ui/identity";
 import { Markdown } from "../ui/Markdown";
@@ -29,7 +29,9 @@ export function CreateCharacter() {
   const [dorm, setDorm] = useState<DormId>("aurora");
   const [vals, setVals] = useState<number[]>(SUBJECTS.map((s) => (s.id === "kw" ? KW_MAX_ALLOC : 225)));
   const [profiles, setProfiles] = useState<Record<StageKey, StageProfileIn>>({ "0": {}, "1": {}, "2": {} });
-  const [secret, setSecret] = useState("");
+  const [priv, setPriv] = useState<PrivateProfile>({ secret: "", trigger: "", growthIf: "" });
+  const [nameLatin, setNameLatin] = useState("");
+  const [nameNative, setNameNative] = useState("");
   const [openStage, setOpenStage] = useState<StageKey | "">("0");
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -40,18 +42,13 @@ export function CreateCharacter() {
     const max = SUBJECTS[i].id === "kw" ? KW_MAX_ALLOC : TOTAL_ALLOC;
     setVals((a) => a.map((x, k) => (k === i ? Math.max(0, Math.min(max, Math.floor(v) || 0)) : x)));
   };
-  const setP = (st: StageKey, k: keyof StageProfileIn, v: string | null) => setProfiles((p) => ({ ...p, [st]: { ...p[st], [k]: v } }));
-  const pick = (st: StageKey, k: "avatar" | "body") => async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
-    try { setP(st, k, await shrinkImage(f)); } catch { toast("이미지를 읽지 못했어요."); }
-  };
-
+  const setP = (st: StageKey, k: Exclude<keyof StageProfileIn, "keywords">, v: string | null) => setProfiles((p) => ({ ...p, [st]: { ...p[st], [k]: v } }));
   const submit = async () => {
     if (!name.trim()) { toast("이름을 써 주세요."); return; }
     if (rem !== 0) { toast("남은 점수가 0이어야 해요."); return; }
     setBusy(true);
     try {
-      const id = await createCharacter({ name: name.trim(), dorm, gender: gender.trim(), height: height.trim(), birthday: birthday.trim(), scores: vals, profiles, secret: secret.trim() });
+      const id = await createCharacter({ name: name.trim(), dorm, gender: gender.trim(), height: height.trim(), birthday: birthday.trim(), scores: vals, profiles: Object.fromEntries(Object.entries(profiles).map(([k, v]) => [k, { ...v, nameLatin: nameLatin.trim(), nameNative: nameNative.trim() }])), private: priv });
       toast(`${name.trim()}(으)로 루체른에 입학했어요.`);
       router.push(`/profile/${id}`);
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
@@ -71,19 +68,18 @@ export function CreateCharacter() {
         </button>
         {open && (
           <div className="border-t border-line px-5 pb-5 pt-4">
-            <div className="mb-4 grid grid-cols-2 gap-3">
-              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-line-strong p-4 text-center text-xs text-muted hover:border-gold">
-                {p.avatar ? <img src={p.avatar} alt="두상" className="size-20 rounded-full object-cover" /> : <span className="grid size-20 place-items-center rounded-full bg-sunk">두상</span>}
-                두상 올리기
-                <input type="file" accept="image/*" hidden onChange={pick(st, "avatar")} />
-              </label>
-              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-line-strong p-4 text-center text-xs text-muted hover:border-gold">
-                {p.body ? <img src={p.body} alt="전신" className="h-20 w-auto rounded-lg object-cover" /> : <span className="grid h-20 w-12 place-items-center rounded-lg bg-sunk">전신</span>}
-                전신 올리기
-                <input type="file" accept="image/*" hidden onChange={pick(st, "body")} />
-              </label>
+            <div className="mb-4 grid grid-cols-2 gap-x-3">
+              <Field label="“ 한마디 ”" htmlFor={`pf-q-${st}`} hint={`${(p.quote ?? "").length}/10`}><Input id={`pf-q-${st}`} maxLength={10} value={p.quote ?? ""} onChange={(e) => setP(st, "quote", e.target.value)} /></Field>
+              <Field label="[ 캐치프레이즈 ]" htmlFor={`pf-c-${st}`} hint={`${(p.catchphrase ?? "").length}/10`}><Input id={`pf-c-${st}`} maxLength={10} value={p.catchphrase ?? ""} onChange={(e) => setP(st, "catchphrase", e.target.value)} /></Field>
             </div>
-            <Field label="성격" htmlFor={`pf-pers-${st}`}><Input id={`pf-pers-${st}`} placeholder="한 줄로" value={p.pers ?? ""} onChange={(e) => setP(st, "pers", e.target.value)} /></Field>
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <ImagePick label="두상" compact round value={p.avatar ?? null} onChange={(src) => setP(st, "avatar", src)} />
+              <ImagePick label="전신" compact value={p.body ?? null} onChange={(src) => setP(st, "body", src)} />
+            </div>
+            <Field label="성격 키워드" htmlFor={`pf-kw-${st}`} hint="3개 이상. 쉼표나 Enter로 구분">
+              <KeywordsInput id={`pf-kw-${st}`} value={p.keywords ?? []} onChange={(kw) => setProfiles((pp) => ({ ...pp, [st]: { ...pp[st], keywords: kw } }))} />
+            </Field>
+            <Field label="성격 서술" htmlFor={`pf-pers-${st}`} hint={`공백 미포함 300자 이상 · 현재 ${(p.pers ?? "").replace(/\s/g, "").length}자`}><Textarea id={`pf-pers-${st}`} className="min-h-[160px]" value={p.pers ?? ""} onChange={(e) => setP(st, "pers", e.target.value)} /></Field>
             <Field
               label={<span className="flex items-center justify-between">소개 <button type="button" className="text-xs font-normal text-gold underline-offset-2 hover:underline" onClick={() => setPreview((v) => !v)}>{preview ? "편집" : "미리보기"}</button></span>}
               htmlFor={`pf-text-${st}`}
@@ -91,7 +87,7 @@ export function CreateCharacter() {
             >
               {preview ? <div className="field-input min-h-[140px] text-[15px]"><Markdown text={p.text ?? ""} /></div> : <Textarea id={`pf-text-${st}`} className="min-h-[140px]" value={p.text ?? ""} onChange={(e) => setP(st, "text", e.target.value)} />}
             </Field>
-            <Field label="세부 정보 (선택)" htmlFor={`pf-detail-${st}`} hint="관계, 설정 등 긴 내용. 비워 두면 표시되지 않아요.">
+            <Field label="기타" htmlFor={`pf-detail-${st}`} hint="생일, 습관, 마법적 재능, 입학 전 생활 환경 등 자유롭게">
               {preview ? <div className="field-input min-h-[120px] text-[15px]"><Markdown text={p.detail ?? ""} /></div> : <Textarea id={`pf-detail-${st}`} className="min-h-[120px]" value={p.detail ?? ""} onChange={(e) => setP(st, "detail", e.target.value)} />}
             </Field>
           </div>
@@ -112,7 +108,11 @@ export function CreateCharacter() {
 
         <SectionHead title="기본" className="mt-6" />
         <div className="card p-5 pb-1">
-          <Field label="이름" htmlFor="cc-n"><Input id="cc-n" placeholder="캐릭터 이름" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="이름 (국문)" htmlFor="cc-n" hint="장난식이거나 논란을 빚을 수 있는 이름은 금지"><Input id="cc-n" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <div className="grid grid-cols-2 gap-x-3">
+            <Field label="영문 이름" htmlFor="cc-nl"><Input id="cc-nl" value={nameLatin} onChange={(e) => setNameLatin(e.target.value)} /></Field>
+            <Field label="모국어 이름 (선택)" htmlFor="cc-nn"><Input id="cc-nn" value={nameNative} onChange={(e) => setNameNative(e.target.value)} /></Field>
+          </div>
           <div className="grid grid-cols-3 gap-x-3">
             <Field label="성별" htmlFor="cc-g"><Input id="cc-g" placeholder="여 / 남 / 기타" value={gender} onChange={(e) => setGender(e.target.value)} /></Field>
             <Field label="키" htmlFor="cc-h"><Input id="cc-h" placeholder="140cm" value={height} onChange={(e) => setHeight(e.target.value)} /></Field>
@@ -141,11 +141,11 @@ export function CreateCharacter() {
         <SectionHead title="성장 단계별 프로필" aside="두상 · 전신 · 소개" />
         <div className="flex flex-col gap-3">{(["0", "1", "2"] as StageKey[]).map(stageCard)}</div>
 
-        <SectionHead title="비밀 설정" aside="운영자만 볼 수 있어요" />
-        <div className="card p-5 pb-2">
-          <Field label="운영자에게만 보이는 설정" htmlFor="cc-secret" hint="다른 멤버에게는 보이지 않아요. 스토리 진행에 쓸 비밀, 숨긴 배경 등을 적어요. 마크다운 가능.">
-            <Textarea id="cc-secret" className="min-h-[120px]" value={secret} onChange={(e) => setSecret(e.target.value)} />
-          </Field>
+        <SectionHead title="비공개 프로필" aside="본인과 운영자만 볼 수 있어요" />
+        <div className="card border-dashed p-5 pb-1">
+          <Field label="트리거 요소" htmlFor="cc-tr" hint="역극에서 피해야 할 요소. 운영진 참고용"><Textarea id="cc-tr" className="min-h-[90px]" value={priv.trigger} onChange={(e) => setPriv({ ...priv, trigger: e.target.value })} /></Field>
+          <Field label="비밀 설정" htmlFor="cc-secret" hint="커뮤니티 수위표를 준수해 공개되지 않는 설정. 비워 둘 수 있어요"><Textarea id="cc-secret" className="min-h-[140px]" value={priv.secret} onChange={(e) => setPriv({ ...priv, secret: e.target.value })} /></Field>
+          <Field label="성장 IF" htmlFor="cc-gi" hint="차후 성장 방향성. 러닝 중 변경은 운영진과 논의"><Textarea id="cc-gi" className="min-h-[140px]" value={priv.growthIf} onChange={(e) => setPriv({ ...priv, growthIf: e.target.value })} /></Field>
         </div>
       </div>
 
