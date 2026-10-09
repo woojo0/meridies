@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ChevronRight, KeyRound, Lock, LogOut, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
+import { BookOpen, ChevronRight, KeyRound, Lock, LogOut, MessageSquare, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { H } from "@/lib/constants";
@@ -64,6 +64,7 @@ export function MoreView() {
         <MenuRow href="/more/handbook" icon={<BookOpen size={ic} strokeWidth={1.6} />} title="루체른 생활 편람" sub="물가, 캠퍼스, 시간표, 성적, 소문, 연표" />
         <MenuRow href="/more/rules" icon={<Lock size={ic} strokeWidth={1.6} />} title="규칙" sub="커뮤 운영 규칙" />
         <MenuRow href="/more/characters" icon={<Users size={ic} strokeWidth={1.6} />} title="캐릭터 목록" sub={`${chars.length}명`} />
+        {(me || st.session.admin) && <MenuRow href="/inbox" icon={<MessageSquare size={ic} strokeWidth={1.6} />} title="운영자 문의함" sub={st.session.admin ? "멤버가 보낸 메시지 확인·답장" : "운영자와 1:1로 메시지 주고받기"} />}
         {!LIVE && <MenuRow href="/join" icon={<Plus size={ic} strokeWidth={1.6} />} title="캐릭터 등록" sub="성적 2,000점 분배 · 데모에서는 여러 명 가능" />}
       </div>
 
