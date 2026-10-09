@@ -18,13 +18,13 @@ export function Badge({ n, className }: { n: number; className?: string }) {
   );
 }
 
-export function TopBar({ me, title, root, unread }: { me: Character | null; title?: string; root: boolean; unread: number }) {
+export function TopBar({ me, title, root, unread, wide }: { me: Character | null; title?: string; root: boolean; unread: number; wide?: boolean }) {
   const router = useRouter();
   const openDrawer = useOverlay((s) => s.openDrawer);
   const stage = useStore((s) => s.data.stage);
   return (
     <header className="sticky top-0 z-30 bg-bg/85 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
-      <div className="mx-auto flex h-[62px] max-w-[var(--content)] items-center gap-2 px-5 lg:px-8">
+      <div className={cx("mx-auto flex h-[62px] items-center gap-2 px-5 lg:px-8", wide ? "max-w-[1330px]" : "max-w-[var(--content)]")}>
         {root ? (
           <div className="flex min-w-0 items-center gap-2.5 lg:hidden">
             <BrandMark size={26} />
