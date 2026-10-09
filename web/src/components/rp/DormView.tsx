@@ -22,7 +22,8 @@ export function DormView() {
   const chars = useStore((s) => s.data.chars);
   const dormMsgs = useStore((s) => s.data.dormMsgs);
   const dormSend = useStore((s) => s.dormSend);
-  const [viewDorm, setViewDorm] = useState<string | null>(null);
+  // 만능열쇠 방문권이 살아 있으면 그 기숙사를 먼저 보여줘요.
+  const [viewDorm, setViewDorm] = useState<string | null>(() => (me?.visit && me.visit.until > Date.now() ? me.visit.dorm : null));
   const [viewStage, setViewStage] = useState<number | null>(null);
 
   const visit = me?.visit && me.visit.until > now ? me.visit : null;

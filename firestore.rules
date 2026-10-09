@@ -105,7 +105,7 @@ service cloud.firestore {
       function canEnterDorm(id) {
         let c = charOf(myCharId()).data;
         let dormId = id.split('-')[0];
-        return c.dorm == dormId || (c.visit != null && c.visit.dorm == dormId && c.visit.until > request.time.toMillis());
+        return c.dorm == dormId || ('visit' in c && c.visit != null && c.visit.dorm == dormId && c.visit.until > request.time.toMillis());
       }
 
       match /messages/{msgId} {
