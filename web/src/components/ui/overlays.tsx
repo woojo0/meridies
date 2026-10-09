@@ -24,10 +24,10 @@ export function SheetRoot() {
         role="dialog"
         aria-modal="true"
         className={cx(
-          "absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col overflow-hidden bg-surface shadow-float",
+          "absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col overflow-hidden shadow-float",
           letter
-            ? "top-0 max-h-none bg-night lg:top-1/2 lg:left-1/2 lg:h-auto lg:max-h-[92vh] lg:w-[min(560px,96vw)] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:bottom-auto"
-            : "anim-up rounded-t-[24px] lg:top-1/2 lg:left-1/2 lg:bottom-auto lg:w-[min(520px,92vw)] lg:max-h-[86vh] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[24px] lg:animate-none",
+            ? "top-0 max-h-none bg-[#15120c] text-[#E9DFC4] lg:top-1/2 lg:left-1/2 lg:h-auto lg:max-h-[92vh] lg:w-[min(560px,96vw)] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:bottom-auto"
+            : "anim-up rounded-t-[24px] bg-surface lg:top-1/2 lg:left-1/2 lg:bottom-auto lg:w-[min(520px,92vw)] lg:max-h-[86vh] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[24px] lg:animate-none",
         )}
       >
         {!letter && <div className="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-line-strong lg:hidden" />}
