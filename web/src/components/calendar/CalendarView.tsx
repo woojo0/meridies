@@ -53,7 +53,7 @@ export function CalendarView() {
           <h2 className="text-lg">{y}년 {mo + 1}월</h2>
           <IconButton label="다음 달" onClick={() => moveCalMonth(1)}><ChevronRight size={22} strokeWidth={1.6} /></IconButton>
         </div>
-        <div className="grid grid-cols-7 gap-0.5 text-center">
+        <div className="grid grid-cols-7 gap-y-1 text-center">
           {"일월화수목금토".split("").map((x, i) => <span key={x} className={cx("py-1 text-[11.5px] text-muted", i === 0 && "text-crit/80")}>{x}</span>)}
           {Array.from({ length: 42 }, (_, i) => {
             const d = addDays(start, i); const k = ymd(d); const es = evOn(k);
@@ -65,14 +65,16 @@ export function CalendarView() {
                 aria-pressed={on}
                 aria-label={`${d.getMonth() + 1}월 ${d.getDate()}일 일정 ${es.length}개`}
                 className={cx(
-                  "mx-auto flex aspect-square w-full max-h-[52px] flex-col items-center justify-center gap-[3px] rounded-full text-sm tnum transition-colors",
-                  out && "text-muted/40",
-                  k === today && !on && "font-bold text-gold",
-                  on ? "bg-gold text-gold-ink" : "hover:bg-sunk",
+                  "relative mx-auto flex size-11 flex-col items-center justify-center rounded-full text-[13.5px] tnum transition-colors",
+                  out && "text-muted/35",
+                  on ? "bg-ink text-bg" : "hover:bg-sunk",
+                  k === today && !on && "font-semibold text-gold",
+                  k === today && "ring-1 ring-inset ring-gold/70",
                 )}
               >
-                {d.getDate()}
-                <span className="flex h-[5px] gap-0.5">{es.slice(0, 3).map((e) => <i key={e.id} className={cx("size-[5px] rounded-full", on ? "bg-gold-ink/60" : catDot[e.cat])} />)}</span>
+                <span className="leading-none">{d.getDate()}</span>
+                <span className="absolute bottom-[5px] flex h-1 gap-[3px]">{es.slice(0, 3).map((e) => <i key={e.id} className={cx("size-1 rounded-full", on ? "bg-bg/70" : catDot[e.cat])} />)}</span>
+                {k === today && !on && <span className="sr-only">오늘</span>}
               </button>
             );
           })}
