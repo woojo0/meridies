@@ -10,6 +10,8 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { getDownloadURL, ref as sref, uploadString } from "firebase/storage";
+import { DORMS } from "./constants";
+import { seed } from "./seed";
 import { call, fbAuth, fbDb, fbStorage } from "./firebase";
 import { uid as mkId } from "./format";
 import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, SubjectId, Thread } from "./types";
@@ -286,8 +288,18 @@ export const L = {
   setStage: (stage: Stage) => call("setStage", { stage }).then(() => undefined),
   semester: () => call("closeSemester", { post: false }).then(() => undefined),
   postResults: () => call("closeSemester", { post: true }).then(() => undefined),
-  approveUser: (uid: string, status: MemberUser["status"]) => call("approveUser", { uid, status }).then(() => undefined),
-  seedDefaults: () => call<undefined, { items: number; jobs: number }>("seedDefaults"),
+  approveUser: (uid: string, status: MemberUser["status"]) => setDoc(doc(fbDb(), "users", uid), { status, reviewedAt: now() }, { merge: true }),
+  /** 상점·아르바이트·기본 설정·기숙사 방을 운영자 권한으로 직접 심어요. */
+  async seedDefaults() {
+    const db = fbDb(); const b = writeBatch(db); const d = seed();
+    for (const i of d.items) b.set(doc(db, "items", i.id), i, { merge: true });
+    for (const j of d.jobs) b.set(doc(db, "jobs", j.id), j, { merge: true });
+    const g = await getDoc(doc(db, "settings", "global"));
+    if (!g.exists()) b.set(doc(db, "settings", "global"), { stage: 0, notice: null, updatedAt: now() });
+    for (const dm of DORMS) b.set(doc(db, "dorms", `${dm.id}-0`), { dorm: dm.id, stage: 0, open: true }, { merge: true });
+    await b.commit();
+    return { items: d.items.length, jobs: d.jobs.length };
+  },
   async getUser(uid: string) { const s = await getDoc(doc(fbDb(), "users", uid)); return s.data() as MemberUser | undefined; },
 };
 export { serverTimestamp };

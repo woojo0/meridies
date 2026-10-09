@@ -39,6 +39,9 @@ export async function call<TIn, TOut>(name: string, data?: TIn): Promise<TOut> {
     return res.data;
   } catch (e) {
     const err = e as { code?: string; message?: string };
+    const code = (err.code ?? "").replace(/^functions\//, "");
+    if (code === "internal" || code === "not-found" || code === "unavailable") throw new Error(`서버 함수(${name})에 연결하지 못했어요. Functions 배포가 끝났는지 확인해 주세요.`);
+    if (code === "unauthenticated") throw new Error("로그인이 필요해요.");
     const msg = err.message?.replace(/^.*?:\s*/, "") || "요청에 실패했어요.";
     throw new Error(msg);
   }
