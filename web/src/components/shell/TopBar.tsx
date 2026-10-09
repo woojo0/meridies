@@ -18,7 +18,7 @@ export function Badge({ n, className }: { n: number; className?: string }) {
   );
 }
 
-export function TopBar({ me, title, root, unread, wide }: { me: Character | null; title?: string; root: boolean; unread: number; wide?: boolean; docWide?: boolean }) {
+export function TopBar({ me, title, root, unread, wide, docWide }: { me: Character | null; title?: string; root: boolean; unread: number; wide?: boolean; docWide?: boolean }) {
   const router = useRouter();
   const openDrawer = useOverlay((s) => s.openDrawer);
   const stage = useStore((s) => s.data.stage);
