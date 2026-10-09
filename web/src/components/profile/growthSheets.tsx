@@ -8,7 +8,8 @@ import { useMe, useTick } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
 import { jobLeft, studyLeft, useStore } from "@/lib/store";
 import { ResultSheet, SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Field, Input, Pill, Progress, Select } from "../ui/primitives";
+import { Button, Field, Input, Pill, Progress } from "../ui/primitives";
+import { Dropdown } from "../ui/Dropdown";
 
 export const openStudySheet = (useJokbo = false) => useOverlay.getState().openSheet(<StudySheet initialJokbo={useJokbo} />);
 export const openJobSheet = () => useOverlay.getState().openSheet(<JobSheet />);
@@ -188,10 +189,7 @@ export function TransferSheet({ to: initialTo }: { to?: string }) {
     <>
       <SheetTitle sub={<>보낼 때 {TRANSFER_FEE * 100}%가 수수료로 사라져요. 내 지갑: <b className="tnum text-ink">{money(me.money)}</b></>}>송금</SheetTitle>
       <Field label="받는 캐릭터" htmlFor="tf-to">
-        <Select id="tf-to" value={to} onChange={(e) => setTo(e.target.value)}>
-          <option value="">고르기</option>
-          {chars.filter((c) => c.id !== me.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
+        <Dropdown id="tf-to" value={to} onChange={setTo} options={chars.filter((c) => c.id !== me.id).map((c) => ({ v: c.id, l: c.name }))} />
       </Field>
       <Field label="보낼 금액 (그로셴)" htmlFor="tf-amt">
         <Input id="tf-amt" type="number" inputMode="numeric" min={TRANSFER_MIN} max={me.money} placeholder="예: 20" value={amt} onChange={(e) => setAmt(e.target.value)} />

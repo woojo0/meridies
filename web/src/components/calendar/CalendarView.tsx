@@ -9,7 +9,8 @@ import { toast, useOverlay } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import type { CalEvent, CatId } from "@/lib/types";
 import { SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Empty, Field, IconButton, Input, SectionHead, Select, Textarea } from "../ui/primitives";
+import { Button, Empty, Field, IconButton, Input, SectionHead, Textarea } from "../ui/primitives";
+import { Dropdown } from "../ui/Dropdown";
 
 const catDot: Record<CatId, string> = { event: "bg-aurora", story: "bg-gold", notice: "bg-muted", academic: "bg-astra" };
 
@@ -109,7 +110,7 @@ export function AddEventSheet({ date }: { date: string }) {
         <Field label="날짜" htmlFor="ev-d"><Input id="ev-d" type="date" value={f.date} onChange={set("date")} /></Field>
         <Field label="끝나는 날 (기간 일정만)" htmlFor="ev-e"><Input id="ev-e" type="date" value={f.end} onChange={set("end")} /></Field>
       </div>
-      <Field label="분류" htmlFor="ev-c"><Select id="ev-c" value={f.cat} onChange={set("cat")}>{(Object.entries(CATS) as [CatId, string][]).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select></Field>
+      <Field label="분류" htmlFor="ev-c"><Dropdown<CatId> id="ev-c" value={f.cat} onChange={(v) => setF((x) => ({ ...x, cat: v }))} options={(Object.entries(CATS) as [CatId, string][]).map(([k, l]) => ({ v: k, l }))} /></Field>
       <Field label="설명" htmlFor="ev-x"><Textarea id="ev-x" className="min-h-[70px]" value={f.desc} onChange={set("desc")} /></Field>
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>

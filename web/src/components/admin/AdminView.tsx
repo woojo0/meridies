@@ -12,7 +12,11 @@ import { useStore } from "@/lib/store";
 import type { Stage, SubjectId } from "@/lib/types";
 import { Crest } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Empty, Field, Input, Segmented, Select, Textarea } from "../ui/primitives";
+import { Button, Empty, Field, Input, Segmented, Textarea } from "../ui/primitives";
+import { Dropdown } from "../ui/Dropdown";
+import { ItemIcon } from "../ui/ItemIcon";
+import { money } from "@/lib/format";
+import type { Item } from "@/lib/types";
 
 function Card({ title, desc, children }: { title: string; desc?: string; children?: React.ReactNode }) {
   return (
@@ -39,7 +43,7 @@ export function AdminView() {
   const [notice, setNotice] = useState(data.notice?.text ?? "");
 
   return (
-    <>
+    <div className="lg:grid lg:grid-cols-2 lg:gap-x-5">
       {LIVE && <MembersCard />}
       <Card title="성장 단계" desc="바꾸면 커뮤 전체의 프로필·두상이 그 단계로 바뀌어요. 이미 쓴 글은 작성 당시 모습을 유지하고, 기숙사 역극방은 새로 열려요.">
         <Segmented
@@ -68,9 +72,9 @@ export function AdminView() {
       </Card>
 
       <Card title="성적·재화 조정" desc="이벤트 보상이나 정정에 써요. 조정하면 해당 캐릭터에게 알림이 가고 운영 기록에 남아요.">
-        <Field label="캐릭터" htmlFor="ad-c"><Select id="ad-c" value={adj.c} onChange={(e) => setAdj({ ...adj, c: e.target.value })}>{data.chars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></Field>
+        <Field label="캐릭터" htmlFor="ad-c"><Dropdown id="ad-c" value={adj.c} onChange={(v) => setAdj({ ...adj, c: v })} options={data.chars.map((c) => ({ v: c.id, l: c.name }))} /></Field>
         <div className="grid grid-cols-[1fr_110px] gap-2.5">
-          <Field label="항목" htmlFor="ad-t"><Select id="ad-t" value={adj.t} onChange={(e) => setAdj({ ...adj, t: e.target.value as SubjectId | "money" })}>{SUBJECTS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}<option value="money">재화 (그로셴)</option></Select></Field>
+          <Field label="항목" htmlFor="ad-t"><Dropdown<SubjectId | "money"> id="ad-t" value={adj.t} onChange={(v) => setAdj({ ...adj, t: v })} options={[...SUBJECTS.map((s) => ({ v: s.id as SubjectId | "money", l: s.name })), { v: "money" as const, l: "재화 (그로셴)" }]} /></Field>
           <Field label="증감" htmlFor="ad-n"><Input id="ad-n" type="number" inputMode="numeric" value={adj.n} onChange={(e) => setAdj({ ...adj, n: e.target.value })} /></Field>
         </div>
         <Field label="사유" htmlFor="ad-r"><Input id="ad-r" placeholder="예: 등불 축제 보상" value={adj.why} onChange={(e) => setAdj({ ...adj, why: e.target.value })} /></Field>
@@ -88,9 +92,6 @@ export function AdminView() {
         <Button size="sm" onClick={async () => { try { await st.saveNotice(notice.trim()); toast("공지를 저장했어요."); } catch (e) { toast((e as Error).message); } }}>공지 저장</Button>
       </Card>
 
-      <Card title="상점 아이템 추가" desc="등록하면 바로 상점에 나와요.">
-        <Button size="sm" onClick={() => openSheet(<AddItemSheet />)}><Plus size={16} /> 아이템 추가</Button>
-      </Card>
 
       <Card title="아르바이트 목록" desc="9종. 성공률은 해당 과목 등급(니힐/빅스/사티스/베네/옵티메) 순서예요.">
         <div className="divide-y divide-line">
@@ -103,6 +104,8 @@ export function AdminView() {
         </div>
       </Card>
 
+      <ShopCard />
+      <CharactersCard />
       <Card title="학부" desc="학부 배정은 플레이어가 프로필을 쓸 때 직접 고르고, 기숙사 배정도 그 선택을 따라요.">
         <div className="grid grid-cols-5 gap-1.5">
           {DORMS.map((d) => (
@@ -112,7 +115,7 @@ export function AdminView() {
           ))}
         </div>
       </Card>
-    </>
+    </div>
   );
 }
 
@@ -163,6 +166,104 @@ function MembersCard() {
           </details>
         )}
       </Card>
+    </>
+  );
+}
+
+/** 상점 관리: 가격·재고·제한·숨김을 바로 고쳐요. */
+function ShopCard() {
+  const items = useStore((s) => s.data.items);
+  const openSheet = useOverlay((s) => s.openSheet);
+  const list = [...items].filter((i) => i.cat !== "인형" && i.id !== "ration").sort((a, b) => a.cat.localeCompare(b.cat, "ko"));
+  return (
+    <Card title="상점 관리" desc="아이템을 누르면 가격·재고·인당 제한·설명을 고칠 수 있어요. 숨기면 상점에서 사라져요.">
+      <div className="divide-y divide-line">
+        {list.map((i) => (
+          <button key={i.id} onClick={() => openSheet(<EditItemSheet id={i.id} />)} className="group flex w-full items-center gap-3 py-2.5 text-left">
+            <span className={`grid size-9 shrink-0 place-items-center rounded-lg bg-sunk ${i.hidden ? "text-muted" : "text-gold"}`}><ItemIcon icon={i.icon} size={18} strokeWidth={1.5} /></span>
+            <span className="min-w-0 flex-1">
+              <span className={`block truncate text-sm font-semibold underline-offset-[3px] group-hover:underline ${i.hidden ? "text-muted line-through" : ""}`}>{i.name}</span>
+              <span className="block truncate text-xs text-muted">{i.cat}{i.stock >= 0 ? ` · 재고 ${i.stock}` : ""}{i.limit ? ` · 인당 ${i.limit}회` : ""}</span>
+            </span>
+            <span className="tnum text-sm font-semibold">{money(i.price)}</span>
+          </button>
+        ))}
+      </div>
+      <Button size="sm" variant="ghost" className="mt-3" onClick={() => openSheet(<AddItemSheet />)}><Plus size={16} /> 아이템 추가</Button>
+    </Card>
+  );
+}
+
+function EditItemSheet({ id }: { id: string }) {
+  const item = useStore((s) => s.data.items.find((i) => i.id === id));
+  const updateItem = useStore((s) => s.updateItem);
+  const closeSheet = useOverlay((s) => s.closeSheet);
+  const [f, setF] = useState(() => ({ name: item?.name ?? "", price: String(item?.price ?? 0), stock: item && item.stock >= 0 ? String(item.stock) : "", limit: String(item?.limit ?? 0), cat: item?.cat ?? "", desc: item?.desc ?? "", use: item?.use ?? "", hidden: !!item?.hidden }));
+  const [busy, setBusy] = useState(false);
+  if (!item) return null;
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  return (
+    <>
+      <SheetTitle sub={`${item.cat} · 가격은 그로셴 단위 (1탈러 = 20그로셴)`}>{item.name}</SheetTitle>
+      <Field label="이름" htmlFor="ei-n"><Input id="ei-n" value={f.name} onChange={set("name")} /></Field>
+      <div className="grid grid-cols-3 gap-x-3">
+        <Field label="가격 (그로셴)" htmlFor="ei-p" hint={money(parseInt(f.price, 10) || 0)}><Input id="ei-p" type="number" inputMode="numeric" min={0} value={f.price} onChange={set("price")} /></Field>
+        <Field label="재고 (비우면 무제한)" htmlFor="ei-s"><Input id="ei-s" type="number" inputMode="numeric" min={0} value={f.stock} onChange={set("stock")} /></Field>
+        <Field label="인당 제한 (0=없음)" htmlFor="ei-l"><Input id="ei-l" type="number" inputMode="numeric" min={0} value={f.limit} onChange={set("limit")} /></Field>
+      </div>
+      <Field label="분류" htmlFor="ei-c"><Input id="ei-c" value={f.cat} onChange={set("cat")} /></Field>
+      <Field label="설명" htmlFor="ei-d"><Textarea id="ei-d" className="min-h-[80px]" value={f.desc} onChange={set("desc")} /></Field>
+      <Field label="효과 설명" htmlFor="ei-u"><Input id="ei-u" value={f.use} onChange={set("use")} /></Field>
+      <label className="mb-4 flex cursor-pointer items-center gap-2.5 text-sm"><input type="checkbox" className="size-4 accent-gold" checked={f.hidden} onChange={(e) => setF({ ...f, hidden: e.target.checked })} /> 상점에서 숨기기</label>
+      <SheetActions>
+        <Button variant="ghost" onClick={closeSheet}>취소</Button>
+        <Button disabled={busy} onClick={async () => {
+          const price = parseInt(f.price, 10); if (!f.name.trim() || !(price >= 0)) { toast("이름과 가격을 확인해 주세요."); return; }
+          const patch: Partial<Item> = { name: f.name.trim(), price, stock: f.stock === "" ? -1 : Math.max(0, parseInt(f.stock, 10) || 0), limit: Math.max(0, parseInt(f.limit, 10) || 0), cat: f.cat.trim() || "잡화", desc: f.desc.trim(), use: f.use.trim(), hidden: f.hidden };
+          setBusy(true);
+          try { await updateItem(id, patch); closeSheet(); toast("아이템을 고쳤어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
+        }}>{busy ? "저장 중…" : "저장"}</Button>
+      </SheetActions>
+    </>
+  );
+}
+
+/** 캐릭터 관리: 프로필 열기·수정, 삭제. */
+function CharactersCard() {
+  const chars = useStore((s) => s.data.chars);
+  const openSheet = useOverlay((s) => s.openSheet);
+  return (
+    <Card title="캐릭터 관리" desc="삭제하면 캐릭터·성적·재화·비밀 설정이 지워지고, 그 계정은 캐릭터를 다시 등록할 수 있어요. 타임라인 글과 역극 기록은 남아요.">
+      <div className="divide-y divide-line">
+        {chars.map((c) => (
+          <div key={c.id} className="flex items-center gap-3 py-2.5 text-sm">
+            <span className="min-w-0 flex-1">
+              <a href={`/profile/${c.id}`} className="block truncate font-semibold underline-offset-[3px] hover:underline">{c.name}</a>
+              <span className="block truncate text-xs text-muted">{dormOf(c.dorm).name} · {money(c.money)}</span>
+            </span>
+            <a href={`/profile/${c.id}/edit`} className="text-xs text-muted underline-offset-2 hover:underline">수정</a>
+            <Button size="sm" variant="ghost" className="text-crit" onClick={() => openSheet(<DeleteCharSheet id={c.id} name={c.name} />)}>삭제</Button>
+          </div>
+        ))}
+        {!chars.length && <Empty className="py-2 text-left">아직 캐릭터가 없어요.</Empty>}
+      </div>
+    </Card>
+  );
+}
+
+function DeleteCharSheet({ id, name }: { id: string; name: string }) {
+  const deleteCharacter = useStore((s) => s.deleteCharacter);
+  const closeSheet = useOverlay((s) => s.closeSheet);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <SheetTitle sub="되돌릴 수 없어요. 확인을 위해 캐릭터 이름을 그대로 입력해 주세요.">{name} 삭제</SheetTitle>
+      <Field label="캐릭터 이름" htmlFor="dc-n"><Input id="dc-n" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={name} /></Field>
+      <SheetActions>
+        <Button variant="ghost" onClick={closeSheet}>취소</Button>
+        <Button variant="ink" disabled={typed.trim() !== name || busy} onClick={async () => { setBusy(true); try { await deleteCharacter(id); closeSheet(); toast(`${name}을(를) 삭제했어요.`); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "삭제 중…" : "삭제하기"}</Button>
+      </SheetActions>
     </>
   );
 }

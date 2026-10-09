@@ -278,6 +278,8 @@ export const L = {
   },
   saveNotice: (text: string) => setDoc(doc(fbDb(), "settings", "global"), { notice: text ? { text, at: now() } : null }, { merge: true }),
   addItem: (i: { name: string; price: number; cat: string; stock: number; desc: string }) => setDoc(doc(fbDb(), "items", mkId()), { ...i, limit: 0, icon: "scarf", use: "" }),
+  updateItem: (id: string, patch: Partial<Item>) => updateDoc(doc(fbDb(), "items", id), patch),
+  deleteCharacter: (charId: string) => call("deleteCharacter", { charId }).then(() => undefined),
 
   /* ───── 서버 계산 ───── */
   async createCharacter(c: NewCharacter) {

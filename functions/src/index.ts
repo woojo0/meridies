@@ -451,6 +451,27 @@ const h_closeSemester = handler<{ post?: boolean }>(async (req) => {
   return results;
 });
 
+/** 운영자: 캐릭터 삭제. 캐릭터 문서와 하위(거래·비밀)를 지우고 계정의 캐릭터 연결을 풀어 다시 등록할 수 있게 해요. 글·역극 기록은 남겨요. */
+const h_deleteCharacter = handler<{ charId: string }>(async (req) => {
+  requireAdmin(req);
+  const ref = db.doc(`characters/${req.data.charId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw bad("캐릭터를 찾을 수 없어요.");
+  const c = snap.data() as Char;
+  const batch = db.batch();
+  for (const sub of ["tx", "private"]) {
+    const docs = await ref.collection(sub).get();
+    docs.forEach((d) => batch.delete(d.ref));
+  }
+  batch.delete(ref);
+  if (c.ownerUid) batch.set(db.doc(`users/${c.ownerUid}`), { charId: null }, { merge: true });
+  batch.set(db.collection("adminLog").doc(), { at: Date.now(), text: `캐릭터 삭제: ${c.name}` });
+  await batch.commit();
+  return { ok: true };
+});
+HANDLERS["deleteCharacter"] = h_deleteCharacter as Handler<never>;
+export const deleteCharacter = fn(h_deleteCharacter);
+
 /* ───────── 내보내기: 개별 함수 + 단일 진입점 api ───────── */
 HANDLERS["setAdmin"] = h_setAdmin as Handler<never>;
 export const setAdmin = fn(h_setAdmin);

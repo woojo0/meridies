@@ -13,7 +13,8 @@ import { openStudySheet } from "../profile/growthSheets";
 import { Crest } from "../ui/identity";
 import { ItemArt } from "../ui/ItemIcon";
 import { ResultSheet, SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Eyebrow, Field, Input, KV, Select } from "../ui/primitives";
+import { Button, Eyebrow, Field, Input, KV } from "../ui/primitives";
+import { Dropdown } from "../ui/Dropdown";
 
 /* ── 상점 아이템 상세 + 구매 ── */
 export function ItemSheet({ id }: { id: string }) {
@@ -167,10 +168,7 @@ export function GiftSheet({ id }: { id: string }) {
     <>
       <SheetTitle>{item.name} 선물하기</SheetTitle>
       <Field label="받을 캐릭터" htmlFor="gf-to">
-        <Select id="gf-to" value={to} onChange={(e) => setTo(e.target.value)}>
-          <option value="">고르기</option>
-          {chars.filter((c) => c.id !== me.id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
+        <Dropdown id="gf-to" value={to} onChange={setTo} options={chars.filter((c) => c.id !== me.id).map((c) => ({ v: c.id, l: c.name }))} />
       </Field>
       <Field label="쪽지 (선택)" htmlFor="gf-memo"><Input id="gf-memo" value={memo} onChange={(e) => setMemo(e.target.value)} /></Field>
       <SheetActions>
