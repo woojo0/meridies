@@ -80,9 +80,9 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
         {me && (
           <Link href={`/profile/${me.id}`} className="card-flat flex items-center gap-3 p-3 transition-colors hover:bg-sunk/60">
             <Avatar c={me} stage={stage} size="md" />
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1 text-right">
               <span className="block truncate text-sm font-semibold">{me.name}</span>
-              <span className="flex items-center gap-1.5 text-xs text-muted"><DormDot id={me.dorm} /><span className="tnum">{money(me.money)}</span></span>
+              <span className="flex items-center justify-end gap-1.5 text-xs text-muted"><span className="tnum">{money(me.money)}</span><DormDot id={me.dorm} /></span>
             </span>
           </Link>
         )}
