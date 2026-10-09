@@ -16,14 +16,11 @@ import { Button, Chip, ChipRow, Empty, Field, Input, Note, SectionHead, Textarea
 export function EditProfile() {
   const { id } = useParams<{ id: string }>();
   const sp = useSearchParams();
-  const router = useRouter();
   const me = useMe();
   const admin = useStore((s) => s.session.admin);
   const communityStage = useStore((s) => s.data.stage);
   const c = useStore((s) => s.data.chars.find((x) => x.id === id));
-  const saveProfile = useStore((s) => s.saveProfile);
   const loadSecret = useStore((s) => s.loadSecret);
-  const saveSecret = useStore((s) => s.saveSecret);
 
   const mine = me?.id === id;
   const maxStage = Math.min(2, communityStage + 1);

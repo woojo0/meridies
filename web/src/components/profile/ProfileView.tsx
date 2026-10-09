@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- 사용자가 올린 이미지는 next/image 최적화 대상이 아니에요. */
 
 import { ArrowRightLeft, BookOpen, Briefcase, Pencil } from "lucide-react";
 import Link from "next/link";
