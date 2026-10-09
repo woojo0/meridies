@@ -83,6 +83,7 @@ interface State {
   transfer: (to: string, amt: number, memo: string) => Promise<string | null>;
 
   saveProfile: (stage: Stage, p: Profile, charId?: string) => Promise<void>;
+  renameCharacter: (charId: string, name: string) => Promise<void>;
   loadSecret: (charId: string) => Promise<string | null>;
   loadPrivate: (charId: string) => Promise<PrivateProfile>;
   savePrivate: (charId: string, p: PrivateProfile) => Promise<void>;
@@ -308,6 +309,7 @@ export const useStore = create<State>()(
 
         saveProfile: async (stage, p, charId) => { if (LIVE) return L().saveProfile(stage, p, charId); set((s) => { const m = charId ? s.data.chars.find((c) => c.id === charId) : mine(s.data); if (m) m.profiles[stage] = p; }); },
         loadSecret: async (charId) => { if (LIVE) return L().loadSecret(charId); return get().secrets[charId] ?? ""; },
+        renameCharacter: async (charId, name) => { if (LIVE) return L().renameCharacter(charId, name); set((s) => { const c = s.data.chars.find((x) => x.id === charId); if (c) c.name = name; }); },
         loadPrivateProfiles: async (charId) => (LIVE ? L().loadPrivateProfiles(charId) : {}),
         loadPrivate: async (charId) => { if (LIVE) return L().loadPrivate(charId); return get().privates[charId] ?? { secret: get().secrets[charId] ?? "", trigger: "", growthIf: "" }; },
         savePrivate: async (charId, p) => { if (LIVE) return L().savePrivate(charId, p); set((s) => { s.privates[charId] = p; s.secrets[charId] = p.secret; }); },

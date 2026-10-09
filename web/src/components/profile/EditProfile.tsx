@@ -45,6 +45,8 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
   const router = useRouter();
   const saveProfile = useStore((s) => s.saveProfile);
   const savePrivate = useStore((s) => s.savePrivate);
+  const renameCharacter = useStore((s) => s.renameCharacter);
+  const [name, setName] = useState(c.name);
   const [p, setP] = useState<Profile>(() => {
     const base = c.profiles[stage] ?? { ...prof(c, stage).p, avatar: null, body: null, age: ["11세", "15세", "성인"][stage] };
     return { ...base, extra: base.extra ?? [], keywords: base.keywords ?? [] };
@@ -58,8 +60,11 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
 
   const save = async () => {
     if ((p.quote ?? "").length > 10 || (p.catchphrase ?? "").length > 10) { toast("한마디와 캐치프레이즈는 10자 이내예요."); return; }
+    const nm = name.trim();
+    if (!nm || nm.length > 20) { toast("이름은 1~20자예요."); return; }
     setBusy(true);
     try {
+      if (nm !== c.name) await renameCharacter(c.id, nm);
       await saveProfile(stage, { ...p, extra: extras.filter((e) => e.k.trim() || e.v.trim()) }, c.id);
       try { await savePrivate(c.id, priv); } catch { toast("프로필은 저장했지만 비공개 항목은 저장하지 못했어요(권한 규칙 배포 필요)."); router.push(`/profile/${c.id}`); return; }
       toast("프로필을 저장했어요.");
@@ -100,6 +105,7 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, priv, setPriv 
 
         <SectionHead title="기본 정보" />
         <div className="card p-5 pb-1">
+          <Field label="이름 (국문)" htmlFor="pf-name" hint="모든 단계에 같이 적용돼요. 1~20자"><Input id="pf-name" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <div className="grid grid-cols-2 gap-x-3">
             <Field label="영문 이름" htmlFor="pf-nl"><Input id="pf-nl" value={p.nameLatin ?? ""} onChange={set("nameLatin")} /></Field>
             <Field label="모국어 이름 (선택)" htmlFor="pf-nn"><Input id="pf-nn" value={p.nameNative ?? ""} onChange={set("nameNative")} /></Field>

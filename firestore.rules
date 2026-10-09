@@ -35,7 +35,9 @@ service cloud.firestore {
       // 생성: 본인 계정에 캐릭터가 없을 때 1명. 성적 합계·광휘 상한은 Functions의 onCreate 트리거가 검증.
       allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid && userDoc().data.charId == null;
       // 본인은 프로필 텍스트·이미지만 수정. 재화·성적·인벤토리·아르바이트 상태는 서버만.
-      allow update: if (ownsChar(charId) && unchanged(['money', 'inv', 'scores', 'study', 'studyJob', 'job', 'jobDay', 'ration', 'bought', 'visit', 'ownerUid', 'dorm', 'name']))
+      // 본인은 프로필·이름만 수정(이름은 1~20자). 재화·성적·인벤토리·아르바이트 상태·학부는 서버/운영자만.
+      allow update: if (ownsChar(charId) && unchanged(['money', 'inv', 'scores', 'study', 'studyJob', 'job', 'jobDay', 'ration', 'bought', 'visit', 'ownerUid', 'dorm'])
+          && request.resource.data.name is string && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 20)
         || isAdmin();
       allow delete: if isAdmin();
 

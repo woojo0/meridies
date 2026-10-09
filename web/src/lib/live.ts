@@ -274,6 +274,7 @@ export const L = {
     if (stage > useStore.getState().data.stage) await setDoc(doc(fbDb(), `characters/${id}/private`, `stage${stage}`), data);
     else await updateDoc(doc(fbDb(), "characters", id), { [`profiles.${stage}`]: data });
   },
+  renameCharacter: (charId: string, name: string) => updateDoc(doc(fbDb(), "characters", charId), { name }),
   async loadPrivateProfiles(charId: string) {
     const out: Partial<Record<Stage, Profile>> = {};
     for (const st of [1, 2] as Stage[]) {
