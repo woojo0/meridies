@@ -256,7 +256,17 @@ export const L = {
     const id = charId ?? me().id;
     const avatar = p.avatar ? await upload(`characters/${id}/${stage}/avatar-${Date.now()}.jpg`, p.avatar) : p.avatar ?? null;
     const body = p.body ? await upload(`characters/${id}/${stage}/body-${Date.now()}.jpg`, p.body) : p.body ?? null;
-    await updateDoc(doc(fbDb(), "characters", id), { [`profiles.${stage}`]: { ...p, avatar, body } });
+    const data = { ...p, avatar, body };
+    // 아직 공개 전인 단계는 비공개 문서에 두고, 운영자가 전환할 때 서버가 공개로 옮겨요.
+    if (stage > useStore.getState().data.stage) await setDoc(doc(fbDb(), `characters/${id}/private`, `stage${stage}`), data);
+    else await updateDoc(doc(fbDb(), "characters", id), { [`profiles.${stage}`]: data });
+  },
+  async loadPrivateProfiles(charId: string) {
+    const out: Partial<Record<Stage, Profile>> = {};
+    for (const st of [1, 2] as Stage[]) {
+      try { const s = await getDoc(doc(fbDb(), `characters/${charId}/private`, `stage${st}`)); if (s.exists()) out[st] = s.data() as Profile; } catch { /* 권한 없음 */ }
+    }
+    return out;
   },
   async loadSecret(charId: string) { const s = await getDoc(doc(fbDb(), `characters/${charId}/private`, "secret")); return (s.data()?.text as string | undefined) ?? null; },
   saveSecret: (charId: string, text: string) => setDoc(doc(fbDb(), `characters/${charId}/private`, "secret"), { text, updatedAt: now() }, { merge: true }),

@@ -23,10 +23,16 @@ export function EditProfile() {
   const loadSecret = useStore((s) => s.loadSecret);
 
   const mine = me?.id === id;
-  const maxStage = Math.min(2, communityStage + 1);
+  const maxStage = 2;
   const initStage = Math.max(0, Math.min(maxStage, Number(sp.get("stage") ?? communityStage))) as Stage;
   const [stage, setStage] = useState<Stage>(initStage);
   const [secret, setSecret] = useState<string | null>(null);
+  const loadPrivateProfiles = useStore((s) => s.loadPrivateProfiles);
+  const [priv, setPriv] = useState<Partial<Record<Stage, Profile>> | null>(null);
+  useEffect(() => {
+    if (!c || !(mine || admin)) return;
+    loadPrivateProfiles(c.id).then(setPriv).catch(() => setPriv({}));
+  }, [c, mine, admin, loadPrivateProfiles]);
   useEffect(() => {
     if (!c || !(mine || admin)) return;
     loadSecret(c.id).then((s) => setSecret(s ?? "")).catch(() => setSecret(""));
@@ -34,7 +40,9 @@ export function EditProfile() {
 
   if (!c) return <Empty className="py-16">캐릭터를 찾을 수 없어요.</Empty>;
   if (!(mine || admin)) return <Empty className="py-16">본인 캐릭터만 수정할 수 있어요.</Empty>;
-  return <EditForm key={stage} c={c} stage={stage} setStage={setStage} maxStage={maxStage} communityStage={communityStage} secret={secret} setSecret={setSecret} />;
+  if (priv === null) return null;
+  const merged: Character = { ...c, profiles: { ...c.profiles, ...priv } };
+  return <EditForm key={stage} c={merged} stage={stage} setStage={setStage} maxStage={maxStage} communityStage={communityStage} secret={secret} setSecret={setSecret} />;
 }
 
 function EditForm({ c, stage, setStage, maxStage, communityStage, secret, setSecret }: { c: Character; stage: Stage; setStage: (s: Stage) => void; maxStage: number; communityStage: number; secret: string | null; setSecret: (s: string) => void }) {
@@ -62,7 +70,9 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, secret, setSec
     setBusy(true);
     try {
       await saveProfile(stage, { ...p, extra: extras.filter((e) => e.k.trim() || e.v.trim()) }, c.id);
-      if (secret !== null) await saveSecret(c.id, secret);
+      if (secret !== null) {
+        try { await saveSecret(c.id, secret); } catch { toast("프로필은 저장했지만 비밀 설정은 저장하지 못했어요(권한 규칙 배포 필요)."); router.push(`/profile/${c.id}`); return; }
+      }
       toast("프로필을 저장했어요.");
       router.push(`/profile/${c.id}`);
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
@@ -79,7 +89,7 @@ function EditForm({ c, stage, setStage, maxStage, communityStage, secret, setSec
               <Chip key={s} on={stage === i} onClick={() => setStage(i as Stage)}>{s} · {STAGE_GRADE[i]}{i === communityStage ? " · 현재" : i > communityStage ? " · 준비 중" : ""}</Chip>
             ))}
           </ChipRow>
-          {stage > communityStage && <Note>운영자가 {STAGES[stage]}로 전환하기 전까지 나와 운영자만 볼 수 있어요. 미리 써 두면 전환 때 바로 바뀌어요.</Note>}
+          {stage > communityStage && <Note>운영자가 {STAGES[stage]}로 전환하기 전까지 나와 운영자만 볼 수 있어요(비공개 저장). 미리 써 두면 전환 때 자동으로 공개돼요.</Note>}
         </div>
 
         <SectionHead title="이미지" aside="두상 · 전신" />

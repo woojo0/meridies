@@ -78,6 +78,8 @@ interface State {
 
   saveProfile: (stage: Stage, p: Profile, charId?: string) => Promise<void>;
   loadSecret: (charId: string) => Promise<string | null>;
+  /** 아직 공개 전인 단계 프로필(본인·운영자만). */
+  loadPrivateProfiles: (charId: string) => Promise<Partial<Record<Stage, Profile>>>;
   saveSecret: (charId: string, text: string) => Promise<void>;
   createCharacter: (c: NewCharacter) => Promise<string>;
 
@@ -292,6 +294,7 @@ export const useStore = create<State>()(
 
         saveProfile: async (stage, p, charId) => { if (LIVE) return L().saveProfile(stage, p, charId); set((s) => { const m = charId ? s.data.chars.find((c) => c.id === charId) : mine(s.data); if (m) m.profiles[stage] = p; }); },
         loadSecret: async (charId) => { if (LIVE) return L().loadSecret(charId); return get().secrets[charId] ?? ""; },
+        loadPrivateProfiles: async (charId) => (LIVE ? L().loadPrivateProfiles(charId) : {}),
         saveSecret: async (charId, text) => { if (LIVE) return L().saveSecret(charId, text); set((s) => { s.secrets[charId] = text; }); },
         createCharacter: async (nc) => {
           if (LIVE) return L().createCharacter(nc);

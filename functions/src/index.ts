@@ -120,17 +120,20 @@ export const createCharacter = fn<{ name: string; dorm: string; gender: string; 
     if (!u || (u.status !== "member" && req.auth?.token.admin !== true)) throw new HttpsError("permission-denied", "가입 승인 뒤에 등록할 수 있어요.");
     if (u.charId) throw bad("계정당 캐릭터는 1명이에요.");
     const ref = db.collection("characters").doc();
+    const curStage = Number(((await tx.get(db.doc("settings/global"))).data()?.stage) ?? 0);
     const ages = ["11세", "15세", "성인"];
     const profiles: Record<string, unknown> = {};
+    const privateProfiles: Record<string, unknown> = {};
     for (const st of ["0", "1", "2"]) {
       const p = pin[st] ?? {};
       const filled = st === "0" || !!(str(p.pers, 200) || str(p.text, 5000) || str(p.detail, 10000) || url(p.avatar) || url(p.body));
       if (!filled) continue;
-      profiles[st] = {
+      const prof = {
         gender: str(gender, 20), height: str(height, 20), birthday: str(birthday, 20), age: str(p.age, 20) || ages[+st],
         pers: str(p.pers, 200), text: str(p.text, 5000), detail: str(p.detail, 10000), extra: [],
         avatar: url(p.avatar), body: url(p.body),
       };
+      if (+st > curStage) privateProfiles[st] = prof; else profiles[st] = prof;
     }
     const sc = {} as Record<SubjectId, number>;
     SUBJECTS.forEach((s, i) => (sc[s.id] = scores[i]));
@@ -141,6 +144,7 @@ export const createCharacter = fn<{ name: string; dorm: string; gender: string; 
     });
     tx$(tx, ref.id, "입학 지원금", START_MONEY);
     if (typeof secret === "string" && secret.trim()) tx.set(ref.collection("private").doc("secret"), { text: secret.slice(0, 10000), updatedAt: Date.now() });
+    for (const [st, prof] of Object.entries(privateProfiles)) tx.set(ref.collection("private").doc(`stage${st}`), prof as Record<string, unknown>);
     tx.set(uref, { charId: ref.id }, { merge: true });
     return { id: ref.id };
   });
@@ -407,6 +411,17 @@ export const setStage = fn<{ stage: 0 | 1 | 2 }>(async (req) => {
   if (![0, 1, 2].includes(stage)) throw new HttpsError("invalid-argument", "단계가 올바르지 않아요.");
   const batch = db.batch();
   batch.set(db.doc("settings/global"), { stage, updatedAt: Date.now() }, { merge: true });
+  // 미리 써 둔 단계 프로필(비공개)을 공개 프로필로 옮겨요.
+  const chars = await db.collection("characters").select().get();
+  for (const c of chars.docs) {
+    for (let s = 1; s <= stage; s++) {
+      const pref = c.ref.collection("private").doc(`stage${s}`);
+      const ps = await pref.get();
+      if (!ps.exists) continue;
+      batch.set(c.ref, { profiles: { [s]: ps.data() } }, { merge: true });
+      batch.delete(pref);
+    }
+  }
   for (const d of DORMS) {
     batch.set(db.doc(`dorms/${d}-${stage}`), { dorm: d, stage, open: true }, { merge: true });
     for (const s of [0, 1, 2]) if (s !== stage) batch.set(db.doc(`dorms/${d}-${s}`), { open: false }, { merge: true });

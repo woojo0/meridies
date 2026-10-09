@@ -8,7 +8,7 @@ import { ago, cx, fmtDur, gIdx, money } from "@/lib/format";
 import { useDesktop, useMe, useTick } from "@/lib/hooks";
 import { useOverlay } from "@/lib/overlay";
 import { prof, useStore } from "@/lib/store";
-import type { Character, Stage } from "@/lib/types";
+import type { Character, Profile, Stage } from "@/lib/types";
 import { RoomList } from "../rp/RoomList";
 import { InvItemSheet } from "../shop/ItemSheet";
 import { Avatar, Crest, DormTag, FullBody } from "../ui/identity";
@@ -21,19 +21,29 @@ type Tab = "profile" | "body" | "grades" | "inv" | "rp";
 const gradeText = ["text-crit", "text-warn", "text-muted", "text-good", "text-gold"];
 const gradeBar = ["bg-crit", "bg-warn", "bg-muted", "bg-good", "bg-gold"];
 
-export function ProfileView({ c }: { c: Character }) {
+export function ProfileView({ c: base }: { c: Character }) {
   const me = useMe();
   const now = useTick();
   const desktop = useDesktop();
   const stage = useStore((s) => s.data.stage);
   const items = useStore((s) => s.data.items);
-  const roomsN = useStore((s) => s.data.rooms.filter((r) => r.members.includes(c.id)).length);
+  const roomsN = useStore((s) => s.data.rooms.filter((r) => r.members.includes(base.id)).length);
   const openSheet = useOverlay((s) => s.openSheet);
   const [tab, setTab] = useState<Tab>("profile");
   const [pStage, setPStage] = useState<number | null>(null);
 
-  const mine = me?.id === c.id;
-  const maxStage = mine ? Math.min(2, stage + 1) : stage;
+  const admin0 = useStore((s) => s.session.admin);
+  const mine = me?.id === base.id;
+  const loadPrivateProfiles = useStore((s) => s.loadPrivateProfiles);
+  const [priv, setPriv] = useState<Partial<Record<Stage, Profile>>>({});
+  useEffect(() => {
+    if (!(mine || admin0)) return;
+    let on = true;
+    loadPrivateProfiles(base.id).then((p) => { if (on) setPriv(p); });
+    return () => { on = false; };
+  }, [base.id, mine, admin0, loadPrivateProfiles]);
+  const c: Character = { ...base, profiles: { ...base.profiles, ...priv } };
+  const maxStage = mine || admin0 ? 2 : stage;
   const st = pStage ?? stage;
   const { p, stage: shown } = prof(c, st);
   const kwG = gIdx(c.scores.kw);
@@ -57,7 +67,7 @@ export function ProfileView({ c }: { c: Character }) {
   const stageChips = (
     <ChipRow role="group" aria-label="성장 단계">
       {STAGES.slice(0, maxStage + 1).map((s, i) => (
-        <Chip key={s} on={st === i} onClick={() => setPStage(i)}>{s}{i === stage ? " · 현재" : i > stage ? " · 준비 중" : " · 아카이브"}</Chip>
+        <Chip key={s} on={st === i} onClick={() => setPStage(i)}>{s}{i === stage ? " · 현재" : i > stage ? (c.profiles[i as Stage] ? " · 준비됨" : " · 미작성") : " · 아카이브"}</Chip>
       ))}
     </ChipRow>
   );
