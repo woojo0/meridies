@@ -9,6 +9,7 @@ import { useHydrated } from "@/lib/hooks";
 import { toast } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import { Avatar, BrandMark, DormDot } from "../ui/identity";
+import { ToastRoot } from "../ui/overlays";
 import { Button, Field, Input, Note, RowSub, RowTitle, rowCls } from "../ui/primitives";
 
 const AUTH_MSG: Record<string, string> = {
@@ -48,6 +49,7 @@ export function LoginView() {
 
       {LIVE ? <EmailAuth /> : <DemoAuth next={next} />}
 
+      <ToastRoot />
       <p className="mt-auto pt-10 text-center text-xs text-muted">
         가입 신청 시 <Link href="/rules" className="underline underline-offset-2">규칙</Link> 동의가 필요해요. 비회원은 <Link href="/world" className="underline underline-offset-2">세계관</Link>과 규칙만 볼 수 있어요.
       </p>

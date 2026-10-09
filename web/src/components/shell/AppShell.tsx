@@ -82,6 +82,23 @@ export function Splash() {
   );
 }
 
+function LiveError({ msg }: { msg: string }) {
+  const logout = useStore((s) => s.logout);
+  return (
+    <div className="grid min-h-dvh place-items-center px-5">
+      <div className="card max-w-[460px] p-7 text-center">
+        <BrandMark size={36} className="mx-auto" />
+        <h1 className="mt-4 text-[20px]">연결에 문제가 있어요</h1>
+        <p className="mt-2.5 break-words text-sm leading-relaxed text-muted">{msg}</p>
+        <div className="mt-5 flex justify-center gap-2">
+          <Button variant="ghost" onClick={() => location.reload()}>다시 시도</Button>
+          <Button variant="ghost" onClick={() => logout()}>로그아웃</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Pending({ status, email }: { status: "pending" | "suspended"; email: string | null }) {
   const logout = useStore((s) => s.logout);
   return (
@@ -110,6 +127,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const openDrawer = useOverlay((s) => s.openDrawer);
   useNotificationAlerts();
 
+  const liveError = useStore((s) => s.liveError);
   const signedIn = LIVE ? !!session.uid : !!session.charId;
   const approved = !LIVE || session.status === "member" || session.admin;
   const needsChar = LIVE && signedIn && approved && !session.charId;
@@ -120,6 +138,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
     else if (needsChar && pathname !== "/join") router.replace("/join");
   }, [hydrated, signedIn, needsChar, pathname, router]);
 
+  if (LIVE && hydrated && signedIn && liveError) return <LiveError msg={liveError} />;
   const waiting = !hydrated || !signedIn || (needsChar && pathname !== "/join") || (LIVE && approved && !needsChar && !me);
   if (waiting) {
     return (<><Splash /><div hidden aria-hidden="true">{children}</div></>);

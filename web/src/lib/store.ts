@@ -29,6 +29,7 @@ interface State {
   users: MemberUser[];
   typing: Record<string, Record<string, number>>;
   myTx: Tx[];
+  liveError: string | null;
 
   now: () => number;
   me: () => Character | null;
@@ -120,6 +121,7 @@ export const useStore = create<State>()(
         users: [],
         typing: {},
         myTx: [],
+        liveError: null,
 
         now: () => Date.now() + get().shift,
         me: () => get().data.chars.find((c) => c.id === get().session.charId) ?? null,

@@ -29,8 +29,13 @@ const setData = (patch: Partial<ReturnType<typeof useStore.getState>["data"]>) =
 const withId = <T,>(d: { id: string; data: () => unknown }) => ({ id: d.id, ...(d.data() as object) }) as T;
 
 let started = false;
-let ready = { settings: false, chars: false, user: false };
-const markReady = (k: keyof typeof ready) => { ready[k] = true; if (ready.settings && ready.chars && ready.user) useStore.setState({ hydrated: true }); };
+let ready = { settings: false, chars: false };
+let memberSubscribed = false;
+const markReady = (k: keyof typeof ready) => { ready[k] = true; if (ready.settings && ready.chars) useStore.setState({ hydrated: true }); };
+const fail = (what: string) => (e: unknown) => {
+  const msg = (e as { code?: string; message?: string }).code === "permission-denied" ? `${what}을(를) 읽을 권한이 없어요. 가입 승인 상태를 확인해 주세요.` : `${what} 불러오기 실패: ${(e as Error).message}`;
+  useStore.setState({ liveError: msg, hydrated: true });
+};
 
 /** 앱이 뜰 때 한 번 호출. 로그인 상태를 따라 구독을 켜고 끕니다. */
 export function startLive() {
@@ -38,48 +43,56 @@ export function startLive() {
   started = true;
   onAuthStateChanged(fbAuth(), async (user) => {
     unsub("");
-    ready = { settings: false, chars: false, user: false };
+    ready = { settings: false, chars: false };
+    memberSubscribed = false;
     if (!user) {
-      useStore.setState({ session: { charId: null, admin: false, uid: null, status: null, email: null }, hydrated: true });
+      useStore.setState({ session: { charId: null, admin: false, uid: null, status: null, email: null }, hydrated: true, liveError: null });
       return;
     }
-    const token = await user.getIdTokenResult(true);
-    const admin = token.claims.admin === true;
-    useStore.setState({ hydrated: false, session: { charId: null, admin, uid: user.uid, status: null, email: user.email } });
-    subscribeCore(user, admin);
+    useStore.setState({ hydrated: false, liveError: null, session: { charId: null, admin: false, uid: user.uid, status: null, email: user.email } });
+    let admin = false;
+    try { admin = (await user.getIdTokenResult(true)).claims.admin === true; } catch { /* 토큰 갱신 실패해도 계속 */ }
+    const db = fbDb();
+    // 내 계정 문서. 승인(member)되면 그때 나머지 데이터를 구독해요.
+    sub("user", () => onSnapshot(doc(db, "users", user.uid), (s) => {
+      const u = s.data() as Omit<MemberUser, "uid"> | undefined;
+      const status = u?.status ?? null;
+      useStore.setState((st) => ({ session: { ...st.session, status, charId: u?.charId ?? null, admin } }));
+      const approved = status === "member" || admin;
+      if (!approved) { useStore.setState({ hydrated: true }); return; }
+      if (!memberSubscribed) { memberSubscribed = true; subscribeCore(user, admin); }
+      if (u?.charId) subscribeMine(u.charId);
+    }, (e) => {
+      // 계정 문서가 없거나 못 읽음 → 가입 신청 전 상태로 취급
+      useStore.setState((st) => ({ session: { ...st.session, status: null }, hydrated: true, liveError: `계정 정보를 읽지 못했어요: ${(e as Error).message}` }));
+    }));
   });
 }
 
 function subscribeCore(user: User, admin: boolean) {
   const db = fbDb();
-  // 내 계정 문서
-  sub("user", () => onSnapshot(doc(db, "users", user.uid), (s) => {
-    const u = s.data() as Omit<MemberUser, "uid"> | undefined;
-    useStore.setState((st) => ({ session: { ...st.session, status: u?.status ?? null, charId: u?.charId ?? null, admin } }));
-    if (u?.charId) subscribeMine(u.charId);
-    markReady("user");
-  }));
+  void user;
   sub("settings", () => onSnapshot(doc(db, "settings", "global"), (s) => {
     const g = (s.data() ?? {}) as { stage?: Stage; notice?: { text: string; at: number } | null; results?: { topN: number; top: string[]; dorms: { id: DormId; n: number }[] } | null };
     setData({ stage: g.stage ?? 0, notice: g.notice ?? null, results: g.results ?? null });
     markReady("settings");
-  }));
+  }, fail("설정")));
   sub("chars", () => onSnapshot(collection(db, "characters"), (s) => {
     const myTx = useStore.getState().myTx;
     setData({ chars: s.docs.map((d) => { const c = withId<Character>(d); return { ...c, tx: c.id === useStore.getState().session.charId ? myTx : [] }; }) });
     markReady("chars");
-  }));
-  sub("posts", () => onSnapshot(query(collection(db, "posts"), orderBy("at", "desc")), (s) => setData({ posts: s.docs.map((d) => withId<Post>(d)) })));
+  }, fail("캐릭터")));
+  sub("posts", () => onSnapshot(query(collection(db, "posts"), orderBy("at", "desc")), (s) => setData({ posts: s.docs.map((d) => withId<Post>(d)) }), fail("타임라인")));
   sub("rooms", () => onSnapshot(query(collection(db, "rooms"), orderBy("lastAt", "desc")), (s) => {
     const cur = useStore.getState().data.rooms;
     setData({ rooms: s.docs.map((d) => { const r = withId<Room>(d); const old = cur.find((x) => x.id === r.id); return { ...r, messages: old?.messages ?? [] }; }) });
-  }));
-  sub("events", () => onSnapshot(collection(db, "events"), (s) => setData({ events: s.docs.map((d) => withId<CalEvent>(d)) })));
-  sub("items", () => onSnapshot(collection(db, "items"), (s) => setData({ items: s.docs.map((d) => withId<Item>(d)) })));
-  sub("jobs", () => onSnapshot(collection(db, "jobs"), (s) => setData({ jobs: s.docs.map((d) => withId<Job>(d)) })));
+  }, fail("역극")));
+  sub("events", () => onSnapshot(collection(db, "events"), (s) => setData({ events: s.docs.map((d) => withId<CalEvent>(d)) }), fail("일정")));
+  sub("items", () => onSnapshot(collection(db, "items"), (s) => setData({ items: s.docs.map((d) => withId<Item>(d)) }), fail("상점")));
+  sub("jobs", () => onSnapshot(collection(db, "jobs"), (s) => setData({ jobs: s.docs.map((d) => withId<Job>(d)) }), fail("아르바이트")));
   if (admin) {
-    sub("adminLog", () => onSnapshot(query(collection(db, "adminLog"), orderBy("at", "desc")), (s) => setData({ adminLog: s.docs.map((d) => d.data() as { at: number; text: string }) })));
-    sub("users", () => onSnapshot(collection(db, "users"), (s) => useStore.setState({ users: s.docs.map((d) => withId<MemberUser>(d)) })));
+    sub("adminLog", () => onSnapshot(query(collection(db, "adminLog"), orderBy("at", "desc")), (s) => setData({ adminLog: s.docs.map((d) => d.data() as { at: number; text: string }) }), () => {}));
+    sub("users", () => onSnapshot(collection(db, "users"), (s) => useStore.setState({ users: s.docs.map((d) => withId<MemberUser>(d)) }), () => {}));
   }
 }
 
