@@ -28,10 +28,10 @@ export function TimelineView() {
       <SunStrip />
       <Compose />
       {(notice || up) && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <div className="mt-3 flex flex-col gap-2">
           {notice && (
             <div className="flex gap-3 rounded-2xl border border-gold/25 bg-gold-soft/60 px-5 py-4 text-sm">
-              <Bell size={18} strokeWidth={1.6} className="mt-0.5 shrink-0 text-gold" />
+              <Bell size={18} strokeWidth={1.6} className="mt-[3px] shrink-0 text-gold" />
               <div className="min-w-0">
                 <span className="eyebrow">운영 공지 · {ago(notice.at, now)}</span>
                 <p className="mt-0.5 leading-relaxed">{notice.text}</p>
@@ -39,11 +39,12 @@ export function TimelineView() {
             </div>
           )}
           {up && (
-            <Link href="/calendar" className="card-flat group flex items-center gap-3 px-5 py-4 transition-colors hover:bg-sunk/60 sm:max-w-[250px]">
-              <i className={cx("size-2 shrink-0 rounded-full", catDot[up.cat])} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold">{up.title}</span>
-                <span className="block text-xs text-muted">{fmtDate(up.date)} · {CATS[up.cat]}</span>
+            <Link href="/calendar" className="card-flat group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-sunk/60">
+              <span className="grid size-[18px] shrink-0 place-items-center"><i className={cx("size-2 rounded-full", catDot[up.cat])} /></span>
+              <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                <span className="eyebrow">다가오는 일정</span>
+                <span className="truncate text-sm font-semibold">{up.title}</span>
+                <span className="text-xs text-muted">{fmtDate(up.date)} · {CATS[up.cat]}</span>
               </span>
               <ChevronRight size={16} className="text-muted" />
             </Link>

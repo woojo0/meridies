@@ -28,7 +28,7 @@ export function PostCard({ p, now }: { p: Post; now: number }) {
   const myRoom = rooms.find((r) => r.source.postId === p.id && r.members.includes(meId));
   const cnt = rooms.filter((r) => r.source.postId === p.id).length;
   const liked = p.likes.includes(meId);
-  const actCls = "-ml-2 inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium leading-none tnum transition-colors";
+  const actCls = "inline-flex h-9 min-w-9 items-center justify-center gap-1 rounded-full px-2.5 text-[13px] font-medium leading-none tnum transition-colors";
 
   return (
     <article className="card px-5 py-4">
@@ -56,22 +56,22 @@ export function PostCard({ p, now }: { p: Post; now: number }) {
       </div>
       <div className="mt-3.5 text-[15px]"><RpText text={p.text} /></div>
       <ImageGrid srcs={p.images} className="mt-3" />
-      <div className="mt-3.5 flex items-center justify-between border-t border-line pt-2.5">
+      <div className="mt-3 flex items-center justify-end gap-1 pr-1">
         {mine ? (
           <span className={cx(actCls, "text-muted")} aria-label={`이 글에서 시작된 역극 ${cnt}개`}>
-            <MessageCircle size={17} strokeWidth={1.7} /><span>역극 {cnt}</span>
+            <MessageCircle size={18} strokeWidth={1.7} />{cnt > 0 && <span>{cnt}</span>}
           </span>
         ) : myRoom ? (
-          <button onClick={() => router.push(`/room/${myRoom.id}`)} aria-label="역극방 열기" className={cx(actCls, "bg-gold-soft text-gold hover:brightness-[.98]")}>
-            <MessageCircle size={17} strokeWidth={1.9} className="fill-gold/25" /><span>이어가기{cnt > 1 ? ` · ${cnt}` : ""}</span>
+          <button onClick={() => router.push(`/room/${myRoom.id}`)} aria-label="내 역극방 열기" title="내 역극방 열기" className={cx(actCls, "text-gold hover:bg-gold-soft")}>
+            <MessageCircle size={18} strokeWidth={1.9} className="fill-gold/25" />{cnt > 0 && <span>{cnt}</span>}
           </button>
         ) : (
-          <button onClick={() => openSheet(<TalkSheet postId={p.id} />)} aria-label="말 걸기" className={cx(actCls, "text-ink hover:bg-sunk")}>
-            <MessageCircle size={17} strokeWidth={1.7} /><span>말 걸기{cnt ? ` · ${cnt}` : ""}</span>
+          <button onClick={() => openSheet(<TalkSheet postId={p.id} />)} aria-label="말 걸기" title="말 걸기" className={cx(actCls, "text-muted hover:bg-sunk hover:text-ink")}>
+            <MessageCircle size={18} strokeWidth={1.7} />{cnt > 0 && <span>{cnt}</span>}
           </button>
         )}
-        <button onClick={() => toggleLike(p.id)} aria-pressed={liked} aria-label="마음" className={cx(actCls, "-mr-2", liked ? "text-gold" : "text-muted hover:bg-sunk hover:text-ink")}>
-          <Heart size={17} strokeWidth={1.7} className={cx(liked && "fill-current")} /><span className="min-w-[1ch]">{p.likes.length || ""}</span>
+        <button onClick={() => toggleLike(p.id)} aria-pressed={liked} aria-label="마음" title="마음" className={cx(actCls, liked ? "text-gold hover:bg-gold-soft" : "text-muted hover:bg-sunk hover:text-ink")}>
+          <Heart size={18} strokeWidth={1.7} className={cx(liked && "fill-current")} />{p.likes.length > 0 && <span>{p.likes.length}</span>}
         </button>
       </div>
     </article>

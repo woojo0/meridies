@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Send } from "lucide-react";
 import { useRef, useState } from "react";
 import { shrinkImage } from "@/lib/format";
 import { useMe } from "@/lib/hooks";
@@ -8,7 +8,7 @@ import { toast } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import { Avatar } from "../ui/identity";
 import { PreviewImages } from "../ui/overlays";
-import { Button, IconButton } from "../ui/primitives";
+import { IconButton } from "../ui/primitives";
 
 const DRAFT_KEY = "meridies-draft";
 
@@ -51,7 +51,9 @@ export function Compose() {
           </IconButton>
           <span className="text-xs text-muted tnum">{imgs.length ? `${imgs.length}/4` : ""}</span>
           <span className="flex-1" />
-          <Button size="sm" onClick={submit} disabled={!text.trim() && !imgs.length}>게시</Button>
+          <button onClick={submit} aria-label="게시" disabled={!text.trim() && !imgs.length} className="grid size-10 shrink-0 place-items-center rounded-full bg-gold text-gold-ink transition hover:brightness-105 disabled:opacity-35">
+            <Send size={17} strokeWidth={1.8} />
+          </button>
         </div>
       </div>
       <input
