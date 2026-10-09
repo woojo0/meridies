@@ -131,7 +131,9 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const liveError = useStore((s) => s.liveError);
   const signedIn = LIVE ? !!session.uid : !!session.charId;
   const approved = !LIVE || session.status === "member" || session.admin;
-  const needsChar = LIVE && signedIn && approved && !session.charId && !session.admin;
+  // 계정에 캐릭터 연결이 있어도 실제 캐릭터가 없으면(삭제됨) 등록이 필요해요.
+  const hasChar = !!session.charId && !!me;
+  const needsChar = LIVE && signedIn && approved && !hasChar && !session.admin;
 
   useEffect(() => {
     if (!hydrated) return;
@@ -140,7 +142,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   }, [hydrated, signedIn, needsChar, pathname, router]);
 
   if (LIVE && hydrated && signedIn && liveError) return <LiveError msg={liveError} />;
-  const waiting = !hydrated || !signedIn || (needsChar && pathname !== "/join") || (LIVE && approved && !needsChar && !me && !session.admin);
+  const waiting = !hydrated || !signedIn || (needsChar && pathname !== "/join");
   if (waiting) {
     return (<><Splash /><div hidden aria-hidden="true">{children}</div></>);
   }

@@ -121,7 +121,11 @@ const h_createCharacter = handler<{ name: string; dorm: string; gender: string; 
     const uref = db.doc(`users/${uid}`);
     const u = (await tx.get(uref)).data();
     if (!u || (u.status !== "member" && req.auth?.token.admin !== true)) throw new HttpsError("permission-denied", "가입 승인 뒤에 등록할 수 있어요.");
-    if (u.charId) throw bad("계정당 캐릭터는 1명이에요.");
+    if (u.charId) {
+      const old = await tx.get(db.doc(`characters/${u.charId}`));
+      if (old.exists) throw bad("계정당 캐릭터는 1명이에요.");
+      // 캐릭터가 이미 지워진 경우(콘솔 삭제 등) 연결만 남은 것이니 새로 등록할 수 있어요.
+    }
     const ref = db.collection("characters").doc();
     const curStage = Number(((await tx.get(db.doc("settings/global"))).data()?.stage) ?? 0);
     const ages = ["11세", "15세", "성인"];
