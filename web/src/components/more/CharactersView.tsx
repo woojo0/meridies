@@ -42,7 +42,7 @@ export function CharactersView() {
               </div>
               <div className="px-3 pt-2.5 pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-display text-[14.5px] font-semibold">{c.name}</span>
+                  <span className="min-w-0 truncate font-display text-[14.5px] font-semibold">{c.name}</span>
                   <DormDot id={c.dorm} className="size-2" />
                 </div>
                 <div className="mt-0.5 truncate text-[11.5px] text-muted">{bits.length ? bits.join(" · ") : "프로필 준비 중"}</div>

@@ -75,9 +75,9 @@ export function DormDot({ id, className }: { id: DormId; className?: string }) {
   const f = id === "fifth";
   return (
     <span
-      className={cx("inline-block size-2 shrink-0 rounded-full", className)}
+      className={cx("inline-block size-2 flex-none shrink-0 rounded-full", className)}
       title={`${dormOf(id).name}`}
-      style={f ? { boxShadow: "inset 0 0 0 1.5px var(--fifth)" } : { background: `var(--${id})` }}
+      style={{ flexShrink: 0, aspectRatio: "1 / 1", ...(f ? { boxShadow: "inset 0 0 0 1.5px var(--fifth)" } : { background: `var(--${id})` }) }}
     />
   );
 }
