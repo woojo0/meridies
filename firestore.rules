@@ -1,0 +1,160 @@
+rules_version = '2';
+
+// 메리디에스 Firestore 보안 규칙
+// 역할: 비회원(로그인 안 함) / 대기(가입 신청, 승인 전) / 멤버(승인됨) / 운영자(커스텀 클레임 admin)
+// 원칙: 확률·시간·재화 계산은 전부 Cloud Functions에서. 클라이언트는 그런 필드를 직접 못 바꿉니다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ───────── 공통 헬퍼 ─────────
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function isMember() { return signedIn() && (isAdmin() || (userDoc().data.status == 'member')); }
+    function myCharId() { return userDoc().data.charId; }
+    function ownsChar(charId) { return isMember() && myCharId() == charId; }
+    function charOf(charId) { return get(/databases/$(database)/documents/characters/$(charId)); }
+    function unchanged(fields) { return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields); }
+
+    // ───────── 계정 ─────────
+    // users/{uid}: { email, status: 'pending'|'member'|'suspended', charId, agreedRules, createdAt }
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.agreedRules == true;
+      // 본인은 상태·캐릭터 연결을 못 바꿈. 승인은 운영자만.
+      allow update: if (signedIn() && request.auth.uid == uid && unchanged(['status', 'charId', 'email'])) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ───────── 캐릭터 ─────────
+    // characters/{charId}: { name, dorm, ownerUid, money, inv, scores, profiles{0,1,2}, study, job, ration, ... }
+    match /characters/{charId} {
+      allow read: if isMember();
+      // 생성: 본인 계정에 캐릭터가 없을 때 1명. 성적 합계·광휘 상한은 Functions의 onCreate 트리거가 검증.
+      allow create: if isMember() && request.resource.data.ownerUid == request.auth.uid && userDoc().data.charId == null;
+      // 본인은 프로필 텍스트·이미지만 수정. 재화·성적·인벤토리·아르바이트 상태는 서버만.
+      allow update: if (ownsChar(charId) && unchanged(['money', 'inv', 'scores', 'study', 'studyJob', 'job', 'jobDay', 'ration', 'bought', 'visit', 'ownerUid', 'dorm', 'name']))
+        || isAdmin();
+      allow delete: if isAdmin();
+
+      // 거래 내역: 본인과 운영자만 읽고, 쓰기는 서버만
+      match /tx/{txId} {
+        allow read: if ownsChar(charId) || isAdmin();
+        allow write: if false;
+      }
+    }
+
+    // ───────── 타임라인 ─────────
+    // posts/{postId}: { charId, stage, text, images[], at, likes[] }
+    match /posts/{postId} {
+      allow read: if isMember();
+      allow create: if ownsChar(request.resource.data.charId)
+        && request.resource.data.text is string && request.resource.data.text.size() <= 2000
+        && request.resource.data.images.size() <= 4;
+      // 본인 글: 본문·이미지·수정 표시만. 마음은 누구나 자기 캐릭터 id만 넣고 뺄 수 있음.
+      allow update: if (ownsChar(resource.data.charId) && unchanged(['charId', 'stage', 'at', 'likes']))
+        || (isMember() && unchanged(['charId', 'stage', 'at', 'text', 'images'])
+            && request.resource.data.likes.toSet().difference(resource.data.likes.toSet()).size() <= 1
+            && resource.data.likes.toSet().difference(request.resource.data.likes.toSet()).size() <= 1
+            && (request.resource.data.likes.toSet().difference(resource.data.likes.toSet()).hasOnly([myCharId()]))
+            && (resource.data.likes.toSet().difference(request.resource.data.likes.toSet()).hasOnly([myCharId()])))
+        || isAdmin();
+      allow delete: if ownsChar(resource.data.charId) || isAdmin();
+    }
+
+    // ───────── 1:1 역극방 ─────────
+    // rooms/{roomId}: { members[2], source{postId,charId,stage,text,images,at}, status, lastAt, read{} }
+    // rooms/{roomId}/messages/{msgId}: { charId, stage, text, image, at, edited }
+    match /rooms/{roomId} {
+      allow read: if isMember();
+      // 말 걸기: 글 주인이 아닌 캐릭터가, 자기 캐릭터를 members[1]로, 첫 메시지와 함께 만든다.
+      allow create: if isMember()
+        && request.resource.data.members.size() == 2
+        && request.resource.data.members[1] == myCharId()
+        && request.resource.data.members[0] != myCharId()
+        && request.resource.data.status == 'open';
+      // 완료/다시 열기, 읽음 시각은 참여자만
+      allow update: if (isMember() && resource.data.members.hasAny([myCharId()]) && unchanged(['members', 'source']))
+        || isAdmin();
+      allow delete: if isAdmin();
+
+      match /messages/{msgId} {
+        allow read: if isMember();
+        allow create: if isMember()
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.members.hasAny([myCharId()])
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.status == 'open'
+          && request.resource.data.charId == myCharId();
+        allow update: if ownsChar(resource.data.charId) && unchanged(['charId', 'stage', 'at']);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ───────── 기숙사 역극방 ─────────
+    // dorms/{dormId}-{stage}/messages/{msgId}
+    match /dorms/{dormRoomId} {
+      allow read: if isMember() && (isAdmin() || canEnterDorm(dormRoomId));
+      allow write: if isAdmin();
+
+      function canEnterDorm(id) {
+        let c = charOf(myCharId()).data;
+        let dormId = id.split('-')[0];
+        return c.dorm == dormId || (c.visit != null && c.visit.dorm == dormId && c.visit.until > request.time.toMillis());
+      }
+
+      match /messages/{msgId} {
+        allow read: if isMember() && (isAdmin() || canEnterDorm(dormRoomId));
+        allow create: if isMember() && canEnterDorm(dormRoomId)
+          && request.resource.data.charId == myCharId()
+          && get(/databases/$(database)/documents/dorms/$(dormRoomId)).data.open == true;
+        allow update: if ownsChar(resource.data.charId) && unchanged(['charId', 'stage', 'at']);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ───────── 익명 펜팔 ─────────
+    // threads/{threadId}: { a, b, alias{}, createdAt }  — 당사자만 읽음. 생성·편지 추가는 Functions(우표·비둘기 소모, 분실 10%, 배송 1시간).
+    match /threads/{threadId} {
+      allow read: if isMember() && (resource.data.a == myCharId() || resource.data.b == myCharId() || isAdmin());
+      allow write: if false;
+      match /letters/{letterId} {
+        allow read: if isMember() && (
+          get(/databases/$(database)/documents/threads/$(threadId)).data.a == myCharId()
+          || get(/databases/$(database)/documents/threads/$(threadId)).data.b == myCharId()
+          || isAdmin());
+        // 읽음 표시만 받는 쪽이 바꿀 수 있음
+        allow update: if isMember() && resource.data.from != myCharId() && unchanged(['from', 'text', 'sentAt', 'deliverAt']);
+        allow create, delete: if false;
+      }
+    }
+
+    // ───────── 알림 ─────────
+    match /notifs/{notifId} {
+      allow read: if isMember() && resource.data.to == myCharId();
+      allow update: if isMember() && resource.data.to == myCharId() && unchanged(['to', 'text', 'link', 'at']);
+      allow create, delete: if false;
+    }
+
+    // ───────── 운영자가 쓰고 멤버가 읽는 것 ─────────
+    match /events/{eventId} { allow read: if isMember(); allow write: if isAdmin(); }
+    match /items/{itemId} { allow read: if isMember(); allow write: if isAdmin(); }
+    match /jobs/{jobId} { allow read: if isMember(); allow write: if isAdmin(); }
+    match /settings/{docId} { allow read: if isMember(); allow write: if isAdmin(); }   // stage, notice, ration 등
+
+    // 세계관·편람·규칙: 공개 문서는 비회원도 읽음. publishAt이 미래인 문서는 운영자만.
+    match /docs/{docId} {
+      allow read: if isAdmin() || resource.data.public == true && (resource.data.publishAt == null || resource.data.publishAt <= request.time);
+      allow write: if isAdmin();
+    }
+
+    // 운영 기록
+    match /adminLog/{logId} { allow read, write: if isAdmin(); }
+
+    // 신고
+    match /reports/{reportId} {
+      allow create: if isMember() && request.resource.data.by == myCharId();
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

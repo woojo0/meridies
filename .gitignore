@@ -11,3 +11,6 @@ Thumbs.db
 # 참고 자료(로컬 전용)
 /*.html
 /*.docx
+serviceAccount.json
+.firebase/
+functions/lib/

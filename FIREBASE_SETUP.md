@@ -58,16 +58,44 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 
 같은 내용의 `web/.env.example`을 이미 만들어 두었습니다(값만 비어 있음).
 
-## 8. Firebase CLI (Functions·규칙 배포용)
+## 8. 규칙·Functions 배포 (Firebase CLI)
+
+`firebase init`은 **하지 않아도 됩니다.** 필요한 파일을 저장소에 이미 넣어 두었습니다.
+
+| 파일 | 내용 |
+| --- | --- |
+| `firebase.json`, `.firebaserc` | 프로젝트(`meridies-8cbe6`) 연결과 배포 대상 |
+| `firestore.rules` | 데이터 보안 규칙 (멤버·운영자 권한, 재화·성적은 서버만 수정) |
+| `firestore.indexes.json` | 역극 목록·알림 조회용 색인 |
+| `storage.rules` | 이미지 업로드 규칙 (로그인 사용자, 이미지 5MB 이하) |
+| `functions/` | Cloud Functions 뼈대 (TypeScript, 서울 리전) |
+| `scripts/set-admin.mjs` | 첫 운영자 지정 스크립트 |
+
+터미널에서 저장소 루트로 가서:
 
 ```bash
 npm install -g firebase-tools
-firebase login
-cd "D:\[1].coding\[OC.CM]\meridies"
-firebase init
 ```
 
-`firebase init`에서 **Firestore, Functions, Storage**만 체크 → 기존 프로젝트 `meridies` 선택 → Functions 언어는 **TypeScript**. 생성된 `firestore.rules`, `storage.rules`, `functions/`는 제가 채워 넣겠습니다.
+```bash
+firebase login
+```
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,storage
+```
+
+Functions는 코드가 채워진 뒤에 배포합니다 (`cd functions && npm install && cd .. && firebase deploy --only functions`).
+
+### 첫 운영자 지정
+
+1. Firebase 콘솔 → 프로젝트 설정 → **서비스 계정** → **새 비공개 키 생성** → 받은 JSON을 저장소 루트에 `serviceAccount.json`으로 저장 (git 제외됨)
+2. 사이트에서 운영자로 쓸 이메일로 먼저 가입
+3. 루트에서 `npm install firebase-admin` 후:
+
+```bash
+node scripts/set-admin.mjs 운영자이메일@example.com
+```
 
 ## 9. Vercel 배포
 

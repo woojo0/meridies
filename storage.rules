@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// 메리디에스 Storage 규칙
+// 경로: characters/{charId}/{stage}/avatar.webp, characters/{charId}/{stage}/body.webp,
+//       posts/{postId}/{n}.webp, rooms/{roomId}/{msgId}.webp, dorms/{dormRoomId}/{msgId}.webp
+// 읽기는 로그인한 사용자 모두(멤버 판정은 Firestore에서), 쓰기는 이미지 5MB 이하만.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function isImage() {
+      return request.resource.contentType.matches('image/.*') && request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    match /characters/{charId}/{allPaths=**} {
+      allow read: if signedIn();
+      // 자기 캐릭터인지는 Firestore를 못 보므로 업로드 토큰에 charId를 담거나(권장) Functions 경유. 1단계는 로그인만 요구.
+      allow write: if signedIn() && isImage();
+    }
+    match /posts/{postId}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isImage();
+    }
+    match /rooms/{roomId}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isImage();
+    }
+    match /dorms/{dormRoomId}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isImage();
+    }
+    match /items/{file} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
