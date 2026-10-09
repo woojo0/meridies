@@ -200,6 +200,11 @@ p { margin: 0; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 55%, transparent); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
+/* 모바일(900px 미만)에서는 스크롤바를 숨겨요. 스크롤은 그대로 돼요. */
+@media (max-width: 899px) {
+  * { scrollbar-width: none; }
+  ::-webkit-scrollbar { display: none; width: 0; height: 0; }
+}
 
 /* 데스크톱에서는 전체 UI를 한 단계 작게 (모바일 비율은 그대로) */
 @media (min-width: 900px) {
