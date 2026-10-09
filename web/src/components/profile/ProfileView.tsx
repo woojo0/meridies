@@ -99,7 +99,7 @@ export function ProfileView({ c: base }: { c: Character }) {
         <aside className="sticky top-[80px] self-start">
           <div className="card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full blur-3xl" style={{ background: tint }} aria-hidden="true" />
-            <div className="relative flex min-h-[1020px] items-end justify-center [&>img]:max-h-[1180px] [&>img]:w-auto [&>svg]:w-[min(480px,80%)]"><FullBody c={c} stage={stage} /></div>
+            <div className="relative flex items-end justify-center [&>img]:h-auto [&>img]:w-full [&>img]:max-h-none [&>svg]:min-h-[720px] [&>svg]:w-[min(480px,80%)]"><FullBody c={c} stage={stage} /></div>
             <div className="relative mt-4 border-t border-line pt-4">
               <div className="flex items-center gap-2"><DormTag c={c} stage={stage} /><Pill tone="gold">{STAGES[prof(c, stage).stage]}</Pill>{mine && <Pill tone="ink">내 캐릭터</Pill>}</div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
