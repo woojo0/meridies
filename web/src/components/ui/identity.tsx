@@ -73,12 +73,12 @@ export function Crest({ id, size = 32, className }: { id: DormId; size?: number;
 /** 학부 색 점. 이름은 적지 않고 색으로만. */
 export function DormDot({ id, className }: { id: DormId; className?: string }) {
   const f = id === "fifth";
+  // SVG로 그려요: div+border-radius는 PC의 zoom(.9) 때문에 소수점 픽셀에서 7×8처럼 찌그러져 보일 수 있어요.
   return (
-    <span
-      className={cx("inline-block size-2 flex-none shrink-0 rounded-full", className)}
-      title={`${dormOf(id).name}`}
-      style={{ flexShrink: 0, aspectRatio: "1 / 1", ...(f ? { boxShadow: "inset 0 0 0 1.5px var(--fifth)" } : { background: `var(--${id})` }) }}
-    />
+    <svg viewBox="0 0 10 10" aria-hidden="true" className={cx("inline-block size-2 flex-none shrink-0", className)} style={{ flexShrink: 0 }}>
+      <title>{dormOf(id).name}</title>
+      {f ? <circle cx="5" cy="5" r="4" fill="none" stroke="var(--fifth)" strokeWidth="1.6" /> : <circle cx="5" cy="5" r="5" fill={`var(--${id})`} />}
+    </svg>
   );
 }
 
