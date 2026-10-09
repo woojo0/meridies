@@ -89,9 +89,10 @@ service cloud.firestore {
 
       match /messages/{msgId} {
         allow read: if isMember();
+        // getAfter: 말 걸기처럼 방 생성과 첫 메시지를 한 번에 쓸 때도 통과하도록 쓰기 후 상태로 검사해요.
         allow create: if isMember()
-          && get(/databases/$(database)/documents/rooms/$(roomId)).data.members.hasAny([myCharId()])
-          && get(/databases/$(database)/documents/rooms/$(roomId)).data.status == 'open'
+          && getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.members.hasAny([myCharId()])
+          && getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.status == 'open'
           && request.resource.data.charId == myCharId();
         allow update: if ownsChar(resource.data.charId) && unchanged(['charId', 'stage', 'at']);
         allow delete: if isAdmin();
@@ -145,7 +146,8 @@ service cloud.firestore {
     match /notifs/{notifId} {
       allow read: if isMember() && resource.data.to == myCharId();
       allow update: if isMember() && resource.data.to == myCharId() && unchanged(['to', 'text', 'link', 'at']);
-      allow create: if isAdmin();
+      // 멤버는 다른 캐릭터에게 보내는 알림(말 걸기·답장·선물 등)만 만들 수 있어요.
+      allow create: if isAdmin() || (isMember() && request.resource.data.to != myCharId() && request.resource.data.text is string && request.resource.data.text.size() <= 300);
       allow delete: if false;
     }
 
