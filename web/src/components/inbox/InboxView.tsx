@@ -22,6 +22,9 @@ export function InboxView() {
   const closeChat = useStore((s) => s.closeChat);
 
   const selected = admin ? sp.get("c") : me?.id ?? null;
+  const [q, setQ] = useState("");
+  const norm = (t: string) => t.replace(/\s+/g, "").toLowerCase();
+  const found = q.trim() ? chars.filter((c) => norm(c.name).includes(norm(q))) : [];
 
   useEffect(() => { if (!selected) return; openChat(selected); return () => closeChat(selected); }, [selected, openChat, closeChat]);
 
@@ -47,12 +50,24 @@ export function InboxView() {
           ))}
           {!list.length && <Empty>아직 문의가 없어요.</Empty>}
           <div className="border-t border-line px-4 py-3">
-            <span className="mb-1.5 block text-[12px] text-muted">새 대화 시작</span>
-            <div className="flex flex-wrap gap-1.5">
-              {chars.filter((c) => !threads[c.id]).slice(0, 30).map((c) => (
-                <button key={c.id} onClick={() => router.replace(`/inbox?c=${c.id}`)} className="rounded-full border border-line px-2.5 py-0.5 text-[12px] hover:border-line-strong">{c.name}</button>
-              ))}
-            </div>
+            <span className="mb-1.5 block text-[12px] text-muted">새 대화 시작 · 캐릭터 이름 검색</span>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && found[0]) { router.replace(`/inbox?c=${found[0].id}`); setQ(""); } }}
+              aria-label="캐릭터 이름 검색"
+              className="field-input min-h-10 text-[14px]"
+            />
+            {q.trim() && (
+              <div className="mt-1.5 flex flex-col">
+                {found.slice(0, 8).map((c) => (
+                  <button key={c.id} onClick={() => { router.replace(`/inbox?c=${c.id}`); setQ(""); }} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13.5px] hover:bg-sunk">
+                    <Avatar c={c} stage={0} size="xs" /><span className="truncate">{c.name}</span>{threads[c.id] && <span className="ml-auto text-[11px] text-muted">대화 있음</span>}
+                  </button>
+                ))}
+                {!found.length && <span className="px-2 py-1.5 text-[12.5px] text-muted">맞는 캐릭터가 없어요.</span>}
+              </div>
+            )}
           </div>
         </aside>
       )}
