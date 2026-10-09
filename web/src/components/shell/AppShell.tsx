@@ -158,7 +158,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
           "mx-auto w-full max-w-[var(--content)] px-5 pt-2 pb-[calc(110px+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-28",
           immersive && "pb-[calc(150px+env(safe-area-inset-bottom,0px))]",
           pathname === "/dorm" && "pb-[calc(190px+env(safe-area-inset-bottom,0px))]",
-          (pathname.startsWith("/profile/") || pathname === "/characters" || pathname === "/join") && "lg:max-w-[1280px]",
+          (pathname.startsWith("/profile/") || pathname === "/characters" || pathname === "/join") && "lg:max-w-[1330px]",
         )}
       >
         {children}

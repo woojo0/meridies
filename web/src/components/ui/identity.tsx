@@ -42,7 +42,7 @@ export function FullBody({ c, stage }: { c: Character; stage: number }) {
   const src = prof(c, stage).p.body;
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={`${c.name} 전신`} className="mx-auto max-h-[70vh] w-auto rounded-r" />;
+    return <img src={src} alt={`${c.name} 전신`} className="mx-auto max-h-[70vh] w-auto rounded-2xl object-contain lg:max-h-none" />;
   }
   return (
     <svg viewBox="0 0 160 300" role="img" aria-label={`${c.name} 전신 자리`} className="h-auto w-[min(240px,70%)]">
