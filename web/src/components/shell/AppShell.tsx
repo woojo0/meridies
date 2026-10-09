@@ -150,16 +150,18 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const immersive = pathname.startsWith("/room/");
   const pageTitle = title ?? titleFor(pathname);
   const wide = pathname.startsWith("/profile/") || pathname === "/characters" || pathname === "/join";
+  const docWide = ["/more/world", "/more/handbook", "/more/rules"].includes(pathname);
 
   return (
     <div className="app-scale lg:pl-[var(--rail)]">
-      <TopBar me={me} title={pageTitle} root={root} unread={unread} wide={wide} />
+      <TopBar me={me} title={pageTitle} root={root} unread={unread} wide={wide} docWide={docWide} />
       <main
         className={cx(
           "mx-auto w-full max-w-[var(--content)] px-5 pt-2 pb-[calc(110px+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-28",
           immersive && "pb-[calc(150px+env(safe-area-inset-bottom,0px))]",
           pathname === "/dorm" && "pb-[calc(190px+env(safe-area-inset-bottom,0px))]",
           wide && "lg:max-w-[1330px]",
+          docWide && "lg:max-w-[960px]",
         )}
       >
         {children}

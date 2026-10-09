@@ -7,7 +7,7 @@ export function PublicDoc({ title, eyebrow, src }: { title: string; eyebrow: str
   return (
     <div className="app-scale min-h-dvh">
       <header className="sticky top-0 z-30 bg-bg/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-[62px] max-w-[780px] items-center justify-between px-5">
+        <div className="mx-auto flex h-[62px] max-w-[960px] items-center justify-between px-5">
           <Link href="/" className="flex items-center gap-2.5">
             <BrandMark size={24} />
             <span className="font-display text-[17px] font-semibold tracking-tight">메리디에스</span>
@@ -19,7 +19,7 @@ export function PublicDoc({ title, eyebrow, src }: { title: string; eyebrow: str
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-[780px] px-4 pt-8 pb-24 lg:px-5">
+      <main className="mx-auto max-w-[960px] px-4 pt-8 pb-24 lg:px-5">
         <span className="eyebrow">{eyebrow}</span>
         <h1 className="mt-1.5 mb-4 text-[32px]">{title}</h1>
         <DocView src={src} />
