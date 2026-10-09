@@ -119,7 +119,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
           aria-selected={value === t.k}
           onClick={() => onChange(t.k)}
           className={cx(
-            "flex-[1_0_auto] whitespace-nowrap rounded-full px-3.5 py-2 text-[13.5px] transition-all",
+            "flex-1 basis-0 whitespace-nowrap rounded-full px-3 py-2 text-center text-[13.5px] transition-all",
             value === t.k ? "bg-surface font-semibold text-ink shadow-[0_1px_3px_rgba(0,0,0,.08)]" : "text-muted hover:text-ink",
           )}
         >
@@ -192,7 +192,7 @@ export function Segmented<T extends string | number>({ options, value, onChange 
           key={String(o.v)}
           aria-pressed={o.v === value}
           onClick={() => onChange(o.v)}
-          className={cx("rounded-full px-1 py-2.5 text-sm transition-all", o.v === value ? "bg-surface font-semibold text-ink shadow-[0_1px_3px_rgba(0,0,0,.08)]" : "text-muted hover:text-ink")}
+          className={cx("rounded-full px-1 py-2.5 text-center text-sm transition-all", o.v === value ? "bg-surface font-semibold text-ink shadow-[0_1px_3px_rgba(0,0,0,.08)]" : "text-muted hover:text-ink")}
         >
           {o.l}
         </button>
