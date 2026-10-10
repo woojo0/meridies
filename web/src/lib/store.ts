@@ -15,7 +15,7 @@ import type { CatId, Character, Data, DormId, Item, Profile, Stage, SubjectId, T
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const live = () => (require("./live") as typeof import("./live"));
 
-export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, number] }
+export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, number]; /** 성적·재화 조정에서 최근 고른 캐릭터 id (최신순, 최대 5) */ recentAdjust: string[] }
 export interface StudyResult { subject: string; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
 export interface JobResult { jobId: string; ok: boolean; amt: number; rate: number; grade: number }
 export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null }
@@ -73,10 +73,13 @@ interface State {
   setCalSel: (d: string) => void;
   moveCalMonth: (delta: number) => void;
   addEvent: (e: { title: string; date: string; end: string; cat: CatId; desc: string }) => Promise<void>;
+  deleteAdminLog: (id: string) => Promise<void>;
+  clearAdminLog: () => Promise<void>;
   updateEvent: (id: string, e: { title: string; date: string; end: string; cat: CatId; desc: string }) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
 
   setShopCat: (c: string) => void;
+  pushRecentAdjust: (charId: string) => void;
   buy: (itemId: string) => Promise<Item | null>;
   gift: (itemId: string, to: string, memo: string) => Promise<void>;
   openCookie: () => Promise<string>;
@@ -129,7 +132,7 @@ interface State {
 }
 
 const emptySession = (): Session => ({ charId: null, admin: false, uid: null, status: null, email: null });
-const todayUI = (): UIPrefs => { const d = new Date(); return { shopCat: "전체", calSel: ymd(d), calMonth: [d.getFullYear(), d.getMonth()] }; };
+const todayUI = (): UIPrefs => { const d = new Date(); return { shopCat: "전체", calSel: ymd(d), calMonth: [d.getFullYear(), d.getMonth()], recentAdjust: [] }; };
 
 function addInv(c: Character, id: string, n: number) { c.inv[id] = (c.inv[id] || 0) + n; if (c.inv[id] <= 0) delete c.inv[id]; }
 export function jobLeft(c: Character, now: number) { const day = ymd(new Date(now)); const jd = c.jobDay?.day === day ? c.jobDay : { n: 0, bonus: 0 }; return JOB_PER_DAY + jd.bonus - jd.n; }
@@ -217,11 +220,14 @@ export const useStore = create<State>()(
 
         setCalSel: (d) => set((s) => { s.ui.calSel = d; const [y, m] = d.split("-"); s.ui.calMonth = [+y, +m - 1]; }),
         moveCalMonth: (delta) => set((s) => { let [y, m] = s.ui.calMonth; m += delta; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } s.ui.calMonth = [y, m]; }),
+        deleteAdminLog: async (id) => { if (LIVE) return L().deleteAdminLog(id); set((s) => { s.data.adminLog = s.data.adminLog.filter((x) => x.id !== id); }); },
+        clearAdminLog: async () => { if (LIVE) return L().clearAdminLog(); set((s) => { s.data.adminLog = []; }); },
         updateEvent: async (id, e) => { if (LIVE) { await L().updateEvent(id, e); set((s) => { s.ui.calSel = e.date; }); return; } set((s) => { const ev = s.data.events.find((x) => x.id === id); if (ev) Object.assign(ev, e); s.ui.calSel = e.date; }); },
         deleteEvent: async (id) => { if (LIVE) return L().deleteEvent(id); set((s) => { s.data.events = s.data.events.filter((x) => x.id !== id); }); },
         addEvent: async (e) => { if (LIVE) { await L().addEvent(e); set((s) => { s.ui.calSel = e.date; }); return; } set((s) => { s.data.events.push({ id: uid(), ...e }); s.ui.calSel = e.date; }); },
 
         setShopCat: (c) => set((s) => { s.ui.shopCat = c; }),
+        pushRecentAdjust: (charId) => set((s) => { s.ui.recentAdjust = [charId, ...(s.ui.recentAdjust ?? []).filter((x) => x !== charId)].slice(0, 5); }),
         buy: async (itemId) => {
           if (LIVE) return L().buy(itemId);
           let got: Item | null = null;
@@ -252,7 +258,7 @@ export const useStore = create<State>()(
           set((s) => { const m = mine(s.data); if (!m || !(m.inv.drink > 0)) return; const day = ymd(new Date(get().now())); m.jobDay = m.jobDay?.day === day ? m.jobDay : { day, n: 0, bonus: 0 }; m.jobDay.bonus++; addInv(m, "drink", -1); });
           const m = get().me(); return m ? jobLeft(m, get().now()) : 0;
         },
-        submitExcuse: async () => { if (LIVE) return L().submitExcuse(); set((s) => { const m = mine(s.data); if (!m || !(m.inv.excuse > 0)) return; addInv(m, "excuse", -1); s.data.adminLog.unshift({ at: get().now(), text: `${m.name}: 지각사유서 제출 (프로필 제출 1일 연장)` }); }); },
+        submitExcuse: async () => { if (LIVE) return L().submitExcuse(); set((s) => { const m = mine(s.data); if (!m || !(m.inv.excuse > 0)) return; addInv(m, "excuse", -1); s.data.adminLog.unshift({ id: uid(), at: get().now(), text: `${m.name}: 지각사유서 제출 (프로필 제출 1일 연장)` }); }); },
         enterDorm: async (dormId) => { if (LIVE) return L().enterDorm(dormId); set((s) => { const m = mine(s.data); if (!m || !(m.inv.key > 0)) return; addInv(m, "key", -1); m.visit = { dorm: dormId, until: get().now() + 24 * H }; }); },
 
         ration: async () => {
@@ -438,7 +444,7 @@ export const useStore = create<State>()(
             else if (SUBJECTS1.some((x) => x.id === target)) { (c.scores1 ??= {})[target] = Math.max(0, (c.scores1[target] ?? 0) + n); label = `${subjectName(target)} ${n > 0 ? "+" : ""}${n}점`; }
             else { c.scores[target as SubjectId] = Math.max(0, (c.scores[target as SubjectId] ?? 0) + n); label = `${subjectName(target)} ${n > 0 ? "+" : ""}${n}점`; }
             pushNotif(s.data, c.id, `운영자가 ${label}을(를) 조정했어요.${why ? ` (${why})` : ""}`, { v: "profile", id: c.id });
-            s.data.adminLog.unshift({ at: now, text: `${c.name}: ${label}${why ? ` · ${why}` : ""}` });
+            s.data.adminLog.unshift({ id: uid(), at: now, text: `${c.name}: ${label}${why ? ` · ${why}` : ""}` });
           });
           return label;
         },

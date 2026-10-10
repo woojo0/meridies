@@ -1,19 +1,21 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { DORMS, STAGES, SUBJECTS, dorm as dormOf } from "@/lib/constants";
 import { SUBJECTS1, subjectName } from "@/lib/curriculum";
-import { ago } from "@/lib/format";
+import { ago, cx } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
 import { LIVE } from "@/lib/firebase";
 import { L as liveApi } from "@/lib/live";
 import { useStore } from "@/lib/store";
 import type { Stage } from "@/lib/types";
-import { Crest } from "../ui/identity";
+import { Avatar, Crest, DormDot } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
-import { Button, Empty, Field, Input, Segmented, Textarea } from "../ui/primitives";
+import { Button, Empty, Field, IconButton, Input, Segmented, Tabs, Textarea } from "../ui/primitives";
 import { Dropdown } from "../ui/Dropdown";
 import { CharactersGrid } from "./CharactersGrid";
 import { ItemIcon } from "../ui/ItemIcon";
@@ -32,102 +34,224 @@ function Card({ title, desc, children }: { title: string; desc?: string; childre
   );
 }
 
-/** 운영자 도구. 모바일에서도 모든 작업이 가능하게. */
+type AdminTab = "members" | "ops" | "shop" | "docs";
+type DocId = "rules" | "world" | "handbook";
+const TAB_IDS: AdminTab[] = ["members", "ops", "shop", "docs"];
+
+/** 운영자 도구. 탭으로 나눠요: 멤버 · 운영 · 상점 · 문서. ?tab=docs&doc=world 로 바로 열 수 있어요. */
 export function AdminView() {
   const now = useNow();
   const st = useStore();
   const { data } = st;
   const openSheet = useOverlay((s) => s.openSheet);
+  const sp = useSearchParams();
   const nxt = data.stage + 1;
   const missing = nxt <= 2 ? data.chars.filter((c) => !c.profiles[nxt as Stage]) : [];
   const r = data.results;
   const nameOf = (id: string) => data.chars.find((c) => c.id === id)?.name ?? "";
+  const users = useStore((s) => s.users);
+  const threads = useStore((s) => s.adminChats);
+  const pendingUsers = users.filter((u) => u.status === "pending").length;
+  const pendingChats = Object.values(threads).filter((t) => t.unreadAdmin > 0).length;
+  const memberBadge = pendingUsers + pendingChats;
 
-  const [adj, setAdj] = useState({ c: data.chars[0]?.id ?? "", t: "money" as string, n: "10", why: "" });
+  const spTab = sp.get("tab") as AdminTab | null;
+  const spDoc = sp.get("doc") as DocId | null;
+  const [tab, setTab] = useState<AdminTab>(spTab && TAB_IDS.includes(spTab) ? spTab : "members");
+  const [adj, setAdj] = useState({ c: "", t: "money" as string, n: "10", why: "" });
   const [notice, setNotice] = useState(data.notice?.text ?? "");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const pushRecentAdjust = useStore((s) => s.pushRecentAdjust);
+
+  const badge = (n: number) => n > 0 ? <span className="ml-1.5 inline-block min-w-[18px] rounded-full bg-crit px-1.5 text-[10.5px] font-bold leading-[18px] text-white">{n}</span> : null;
 
   return (
     <div className="flex flex-col">
-      {LIVE && <MembersCard />}
-      <InboxCard />
-      <Card title="성장 단계" desc="바꾸면 커뮤 전체의 프로필·두상이 그 단계로 바뀌어요. 이미 쓴 글은 작성 당시 모습을 유지하고, 기숙사 역극방은 새로 열려요.">
-        <Segmented
-          options={STAGES.map((s, i) => ({ v: i, l: s }))}
-          value={data.stage}
-          onChange={(s) => { if (s === data.stage) return; openSheet(<StageSheet s={s as Stage} />); }}
-        />
-        {nxt <= 2 && <p className="mt-3 text-sm">{STAGES[nxt]} 프로필 미등록: <b>{missing.length}명</b>{missing.length ? ` (${missing.map((c) => c.name).join(", ")})` : ""}</p>}
-      </Card>
+      <Tabs<AdminTab>
+        className="mt-2 mb-1"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { k: "members", l: <>멤버{badge(memberBadge)}</> },
+          { k: "ops", l: "운영" },
+          { k: "shop", l: "상점·아르바이트" },
+          { k: "docs", l: "문서" },
+        ]}
+      />
 
-      <Card title="학기 마감" desc="캐릭터별 옵티메 수를 세어 수석을 정하고, 학부별로 집계해요. 제5학부는 관례에 따라 순위표에 오르지 않아요.">
-        <Button size="sm" onClick={async () => { try { await st.semester(); toast("집계했어요."); } catch (e) { toast((e as Error).message); } }}>지금 집계하기</Button>
-        {r && (
-          <div className="mt-3.5">
-            <p className="mb-1.5 text-sm"><b>수석:</b> {r.top.map(nameOf).join(", ") || "없음"} {r.topN ? `(옵티메 ${r.topN}개)` : ""}</p>
-            <div className="divide-y divide-line rounded-xl bg-sunk/60 px-3">
-              {r.dorms.map((x, i) => (
-                <div key={x.id} className="flex items-center gap-3 py-2.5 text-sm">
-                  <span className="w-5 tnum">{i + 1}</span><Crest id={x.id} size={22} /><span className="flex-1 font-semibold">{dormOf(x.id).name}</span><span className="tnum">옵티메 {x.n}</span>
+      {tab === "members" && (
+        <>
+          {LIVE && <MembersCard />}
+          <InboxCard />
+          <CharactersGrid />
+          <Card title="학부" desc="학부 배정은 플레이어가 프로필을 쓸 때 직접 고르고, 기숙사 배정도 그 선택을 따라요.">
+            <div className="grid grid-cols-5 gap-1.5">
+              {DORMS.map((d) => (
+                <div key={d.id} className="flex flex-col items-center gap-1 rounded-xl bg-sunk/60 py-3 text-center text-[11.5px]">
+                  <Crest id={d.id} size={28} />{d.name}<span className="text-muted tnum">{data.chars.filter((c) => c.dorm === d.id).length}명</span>
                 </div>
               ))}
             </div>
-            <Button size="sm" variant="ghost" className="mt-2.5" onClick={async () => { try { await st.postResults(); toast("타임라인 공지로 올렸어요."); } catch (e) { toast((e as Error).message); } }}>공지로 올리기</Button>
-          </div>
-        )}
-      </Card>
+          </Card>
+        </>
+      )}
 
-      <Card title="성적·재화 조정" desc="이벤트 보상이나 정정에 써요. 조정하면 해당 캐릭터에게 알림이 가고 운영 기록에 남아요.">
-        <Field label="캐릭터" htmlFor="ad-c"><Dropdown id="ad-c" value={adj.c} onChange={(v) => setAdj({ ...adj, c: v })} options={data.chars.map((c) => ({ v: c.id, l: c.name }))} /></Field>
-        <div className="grid grid-cols-[1fr_110px] gap-2.5">
-          <Field label="항목" htmlFor="ad-t"><Dropdown<string> id="ad-t" value={adj.t} onChange={(v) => setAdj({ ...adj, t: v })} options={[{ v: "money", l: "재화 (그로셴)" }, ...SUBJECTS.map((s) => ({ v: s.id as string, l: `1학년 · ${s.name}` })), ...SUBJECTS1.map((s) => ({ v: s.id, l: `5학년 · ${s.name}` }))]} /></Field>
-          <Field label="증감" htmlFor="ad-n"><Input id="ad-n" type="number" inputMode="numeric" value={adj.n} onChange={(e) => setAdj({ ...adj, n: e.target.value })} /></Field>
-        </div>
-        <Field label="사유" htmlFor="ad-r"><Input id="ad-r" placeholder="예: 등불 축제 보상" value={adj.why} onChange={(e) => setAdj({ ...adj, why: e.target.value })} /></Field>
-        <Button size="sm" onClick={async () => { const n = parseInt(adj.n, 10); if (!n) { toast("증감 값을 넣어 주세요."); return; } try { const l = await st.adjust(adj.c, adj.t, n, adj.why.trim()); toast(`${nameOf(adj.c)}: ${l}`); } catch (e) { toast((e as Error).message); } }}>적용하기</Button>
-      </Card>
+      {tab === "ops" && (
+        <>
+          <Card title="성장 단계" desc="바꾸면 커뮤 전체의 프로필·두상이 그 단계로 바뀌어요. 이미 쓴 글은 작성 당시 모습을 유지하고, 기숙사 역극방은 새로 열려요.">
+            <Segmented value={String(data.stage)} onChange={(v) => openSheet(<StageSheet s={Number(v) as Stage} />)} options={STAGES.map((s, i) => ({ v: String(i), l: s }))} />
+            {nxt <= 2 && (
+              <p className="mt-3 text-[13px] text-muted">
+                {STAGES[nxt]} 프로필 미작성: {missing.length ? missing.map((c) => c.name).join(", ") : "없음"}
+              </p>
+            )}
+          </Card>
 
-      <Card title="운영·아이템 기록">
-        {data.adminLog.length ? (
-          <div className="divide-y divide-line text-[13px]">{data.adminLog.map((x, i) => <div key={i} className="py-2"><span className="block">{x.text}</span><span className="text-xs text-muted">{ago(x.at, now)}</span></div>)}</div>
-        ) : <Empty className="py-2 text-left">지각사유서처럼 운영자 확인이 필요한 아이템을 쓰면 여기에 쌓여요.</Empty>}
-      </Card>
-
-      <Card title="공지 수정">
-        <Field label="공지 내용" htmlFor="notice-in"><Textarea id="notice-in" value={notice} onChange={(e) => setNotice(e.target.value)} /></Field>
-        <Button size="sm" onClick={async () => { try { await st.saveNotice(notice.trim()); toast("공지를 저장했어요."); } catch (e) { toast((e as Error).message); } }}>공지 저장</Button>
-      </Card>
-
-
-      <Card title="아르바이트 목록" desc="1학년 9종 · 5학년 11종(과목마다 하나). 1차 성장으로 전환하면 각자 듣는 과목에 맞는 5학년 아르바이트만 보여요. 성공률은 과목 등급(니힐/빅스/사티스/베네/옵티메) 순서예요.">
-        {[0, 1].map((st) => (
-          <div key={st} className="mb-3 last:mb-0">
-            <span className="eyebrow mb-1 block">{st === 0 ? "1학년 · 입학" : "5학년 · 1차 성장"}</span>
-            <div className="divide-y divide-line">
-              {data.jobs.filter((j) => (j.stage ?? 0) === st).map((j) => (
-                <div key={j.id} className="py-2.5">
-                  <span className="block font-semibold">{j.name}</span>
-                  <span className="block text-[13px] text-muted">{subjectName(j.subject)} · 성공률 {j.rates.join("/")}% · 보상 {j.win[0]}~{j.win[1]}그로셴</span>
+          <Card title="학기 마감" desc="캐릭터별 옵티메 수를 세어 수석을 정하고, 학부별로 집계해요. 제5학부는 관례에 따라 순위표에 오르지 않아요.">
+            <Button size="sm" onClick={async () => { try { await st.semester(); toast("집계했어요."); } catch (e) { toast((e as Error).message); } }}>집계하기</Button>
+            {r && (
+              <div className="mt-3.5 rounded-2xl bg-sunk/70 p-4 text-sm">
+                <div className="mb-2"><b>수석</b> · {r.top.length ? r.top.map(nameOf).join(", ") : "없음"} <span className="text-muted">(옵티메 {r.topN}개)</span></div>
+                <div className="flex flex-col gap-1">
+                  {r.dorms.map((d, i) => (
+                    <div key={d.id} className="flex items-center gap-2">
+                      <span className="w-4 text-right text-muted tnum">{i + 1}</span><Crest id={d.id} size={16} /><span className="flex-1">{dormOf(d.id).name}</span><b className="tnum">{d.n}</b>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {!data.jobs.some((j) => (j.stage ?? 0) === st) && <p className="py-2 text-[13px] text-muted">아직 없어요. 위의 “기본 데이터 넣기”를 다시 누르면 추가돼요.</p>}
-            </div>
-          </div>
-        ))}
-      </Card>
+                <Button size="sm" variant="ghost" className="mt-2.5" onClick={async () => { try { await st.postResults(); toast("타임라인 공지로 올렸어요."); } catch (e) { toast((e as Error).message); } }}>공지로 올리기</Button>
+              </div>
+            )}
+          </Card>
 
-      <ShopCard />
-      <DocsCard />
-      <CharactersGrid />
-      <Card title="학부" desc="학부 배정은 플레이어가 프로필을 쓸 때 직접 고르고, 기숙사 배정도 그 선택을 따라요.">
-        <div className="grid grid-cols-5 gap-1.5">
-          {DORMS.map((d) => (
-            <div key={d.id} className="flex flex-col items-center gap-1 rounded-xl bg-sunk/60 py-3 text-center text-[11.5px]">
-              <Crest id={d.id} size={28} />{d.name}<span className="text-muted tnum">{data.chars.filter((c) => c.dorm === d.id).length}명</span>
+          <Card title="성적·재화 조정" desc="이벤트 보상이나 정정에 써요. 조정하면 해당 캐릭터에게 알림이 가고 운영 기록에 남아요.">
+            <Field label="캐릭터" htmlFor="ad-c" hint="이름을 치면 맞는 캐릭터가 아래에 떠요. 비워 두면 최근에 조정한 캐릭터가 보여요.">
+              <CharPicker id="ad-c" value={adj.c} onChange={(v) => setAdj({ ...adj, c: v })} />
+            </Field>
+            <div className="grid grid-cols-[1fr_110px] gap-2.5">
+              <Field label="항목" htmlFor="ad-t"><Dropdown<string> id="ad-t" value={adj.t} onChange={(v) => setAdj({ ...adj, t: v })} options={[{ v: "money", l: "재화 (그로셴)" }, ...SUBJECTS.map((s) => ({ v: s.id as string, l: `1학년 · ${s.name}` })), ...SUBJECTS1.map((s) => ({ v: s.id, l: `5학년 · ${s.name}` }))]} /></Field>
+              <Field label="증감" htmlFor="ad-n"><Input id="ad-n" type="number" inputMode="numeric" value={adj.n} onChange={(e) => setAdj({ ...adj, n: e.target.value })} /></Field>
             </div>
-          ))}
-        </div>
-      </Card>
+            <Field label="사유" htmlFor="ad-r"><Input id="ad-r" value={adj.why} onChange={(e) => setAdj({ ...adj, why: e.target.value })} /></Field>
+            <Button size="sm" onClick={async () => {
+              const n = parseInt(adj.n, 10);
+              if (!adj.c) { toast("캐릭터를 골라 주세요."); return; }
+              if (!n) { toast("증감 값을 넣어 주세요."); return; }
+              try { const l = await st.adjust(adj.c, adj.t, n, adj.why.trim()); pushRecentAdjust(adj.c); toast(`${nameOf(adj.c)}: ${l}`); } catch (e) { toast((e as Error).message); }
+            }}>적용하기</Button>
+          </Card>
+
+          <Card title="공지 수정">
+            <Field label="공지 내용" htmlFor="notice-in"><Textarea id="notice-in" value={notice} onChange={(e) => setNotice(e.target.value)} /></Field>
+            <Button size="sm" onClick={async () => { try { await st.saveNotice(notice.trim()); toast("공지를 저장했어요."); } catch (e) { toast((e as Error).message); } }}>공지 저장</Button>
+          </Card>
+
+          <Card title="운영·아이템 기록" desc="성적·재화 조정, 단계 전환, 지각사유서 제출 같은 운영 기록이에요. 확인한 건 지울 수 있어요.">
+            {data.adminLog.length ? (
+              <>
+                <div className="divide-y divide-line text-[13px]">
+                  {data.adminLog.map((x, i) => (
+                    <div key={x.id ?? i} className="flex items-start gap-2 py-2">
+                      <span className="min-w-0 flex-1"><span className="block">{x.text}</span><span className="text-xs text-muted">{ago(x.at, now)}</span></span>
+                      {x.id && <IconButton label="기록 지우기" className="-mr-2 -mt-1 size-8 text-muted hover:text-crit" onClick={async () => { try { await st.deleteAdminLog(x.id!); } catch (e) { toast((e as Error).message); } }}><X size={15} strokeWidth={1.8} /></IconButton>}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex justify-end">
+                  <button type="button" onClick={async () => { if (!confirmClear) { setConfirmClear(true); return; } try { await st.clearAdminLog(); toast("기록을 모두 지웠어요."); } catch (e) { toast((e as Error).message); } finally { setConfirmClear(false); } }} className={cx("text-[13px] underline-offset-2 hover:underline", confirmClear ? "font-semibold text-crit" : "text-muted")}>{confirmClear ? "정말 모두 지울까요? 한 번 더 누르면 삭제돼요" : "모두 지우기"}</button>
+                </div>
+              </>
+            ) : <Empty className="py-2 text-left">지각사유서처럼 운영자 확인이 필요한 아이템을 쓰면 여기에 쌓여요.</Empty>}
+          </Card>
+        </>
+      )}
+
+      {tab === "shop" && (
+        <>
+          {LIVE && <SeedCard />}
+          <ShopCard />
+          <Card title="아르바이트 목록" desc="1학년 9종 · 5학년 11종(과목마다 하나). 1차 성장으로 전환하면 각자 듣는 과목에 맞는 5학년 아르바이트만 보여요. 성공률은 과목 등급(니힐/빅스/사티스/베네/옵티메) 순서예요.">
+            {[0, 1].map((sg) => (
+              <div key={sg} className="mb-3 last:mb-0">
+                <span className="eyebrow mb-1 block">{sg === 0 ? "1학년 · 입학" : "5학년 · 1차 성장"}</span>
+                <div className="divide-y divide-line">
+                  {data.jobs.filter((j) => (j.stage ?? 0) === sg).map((j) => (
+                    <div key={j.id} className="py-2.5">
+                      <span className="block font-semibold">{j.name}</span>
+                      <span className="block text-[13px] text-muted">{subjectName(j.subject)} · 성공률 {j.rates.join("/")}% · 보상 {j.win[0]}~{j.win[1]}그로셴</span>
+                    </div>
+                  ))}
+                  {!data.jobs.some((j) => (j.stage ?? 0) === sg) && <p className="py-2 text-[13px] text-muted">아직 없어요. 위의 “기본 데이터 넣기”를 누르면 추가돼요.</p>}
+                </div>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
+
+      {tab === "docs" && <DocsCard initial={spDoc && ["rules", "world", "handbook"].includes(spDoc) ? spDoc : "world"} />}
     </div>
+  );
+}
+
+const NO_RECENT: string[] = [];
+/** 캐릭터 고르기: 검색창 + 아래 목록(최대 5). 비어 있으면 최근 조정한 캐릭터 5명. */
+function CharPicker({ id, value, onChange }: { id: string; value: string; onChange: (id: string) => void }) {
+  const chars = useStore((s) => s.data.chars);
+  const recent = useStore((s) => s.ui.recentAdjust) ?? NO_RECENT; // 예전에 저장된 ui에는 없을 수 있어요
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+  const norm = (t: string) => t.replace(/\s+/g, "").toLowerCase();
+  const selected = chars.find((c) => c.id === value);
+  const list = q.trim()
+    ? chars.filter((c) => norm(c.name).includes(norm(q))).slice(0, 5)
+    : [...recent.map((rid) => chars.find((c) => c.id === rid)).filter((c): c is NonNullable<typeof c> => !!c), ...chars.filter((c) => !recent.includes(c.id))].slice(0, 5);
+  const pick = (cid: string) => { onChange(cid); setQ(""); setOpen(false); };
+  return (
+    <div ref={wrap} className="relative">
+      <input
+        id={id}
+        value={open ? q : selected?.name ?? q}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => { setQ(""); setOpen(true); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && list[0]) { e.preventDefault(); pick(list[0].id); } if (e.key === "Escape") setOpen(false); }}
+        aria-label="캐릭터 이름 검색"
+        role="combobox"
+        aria-controls="ad-c-list"
+        aria-expanded={open}
+        autoComplete="off"
+        className="field-input"
+      />
+      {open && (
+        <div id="ad-c-list" role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-2xl border border-line bg-surface shadow-float">
+          {!q.trim() && recent.length > 0 && <span className="block px-3 pt-2 text-[11px] tracking-[.06em] text-muted">최근</span>}
+          {list.map((c) => (
+            <button key={c.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(c.id)} className={cx("flex w-full items-center gap-2.5 px-3 py-2 text-left text-[14px] hover:bg-sunk", c.id === value && "bg-sunk/70")}>
+              <Avatar c={c} stage={0} size="xs" /><span className="truncate">{c.name}</span><DormDot id={c.dorm} className="ml-auto" />
+            </button>
+          ))}
+          {!list.length && <span className="block px-3 py-2.5 text-[13px] text-muted">맞는 캐릭터가 없어요.</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 기본 데이터(아이템·아르바이트·설정·기숙사 방) 심기. 없는 것만 추가하고 이미 있는 건 그대로 둬요. */
+function SeedCard() {
+  const items = useStore((s) => s.data.items);
+  const jobs = useStore((s) => s.data.jobs);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Card title="기본 데이터 넣기" desc={`상점 아이템·아르바이트(1학년 9종, 5학년 11종)·기본 설정·기숙사 방을 심어요. 이미 있는 항목은 건너뛰니 몇 번 눌러도 괜찮아요. 지금 아이템 ${items.length}개 · 아르바이트 ${jobs.length}개.`}>
+      <Button size="sm" disabled={busy} onClick={async () => { setBusy(true); try { const r = await liveApi.seedDefaults(); toast(r.items + r.jobs ? `아이템 ${r.items}개, 아르바이트 ${r.jobs}개를 추가했어요.` : "추가할 게 없어요. 모두 들어 있어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "넣는 중…" : "기본 데이터 넣기"}</Button>
+    </Card>
   );
 }
 
@@ -135,7 +259,6 @@ export function AdminView() {
 function MembersCard() {
   const users = useStore((s) => s.users);
   const chars = useStore((s) => s.data.chars);
-  const items = useStore((s) => s.data.items);
   const [busy, setBusy] = useState<string | null>(null);
   const live = () => liveApi;
   const act = async (uid: string, status: "member" | "pending" | "suspended") => {
@@ -161,11 +284,6 @@ function MembersCard() {
   };
   return (
     <>
-      {!items.length && (
-        <Card title="처음 설정" desc="상점 아이템 9+종, 아르바이트 9종, 기본 설정을 한 번에 심어요. 이미 있는 항목은 건너뛰어요.">
-          <Button size="sm" onClick={async () => { try { const r = await live().seedDefaults(); toast(`아이템 ${r.items}개, 아르바이트 ${r.jobs}개를 심었어요.`); } catch (e) { toast((e as Error).message); } }}>초기 데이터 심기</Button>
-        </Card>
-      )}
       <Card title={`가입 승인${pending.length ? ` · ${pending.length}명 대기` : ""}`} desc="승인하면 바로 캐릭터를 등록하고 활동할 수 있어요.">
         <div className="divide-y divide-line">
           {pending.map(row)}
@@ -241,12 +359,13 @@ function EditItemSheet({ id }: { id: string }) {
 }
 
 /** 문서 편집: 세계관·편람·규칙. "## 제목"으로 절을 나누고, 빈 줄로 문단, "* "로 목록, "> "로 인용. */
-const DOC_IDS = [{ v: "rules" as const, l: "규칙" }, { v: "world" as const, l: "공개 세계관" }, { v: "handbook" as const, l: "루체른 생활 편람" }];
+const DOC_IDS = [{ v: "world" as const, l: "공개 세계관" }, { v: "handbook" as const, l: "생활 편람" }, { v: "rules" as const, l: "규칙" }];
 const DOC_FALLBACK = { rules: RULES, world: WORLD, handbook: HANDBOOK };
-function DocsCard() {
+const DOC_PATH = { rules: "/more/rules", world: "/more/world", handbook: "/more/handbook" };
+function DocsCard({ initial = "world" }: { initial?: "rules" | "world" | "handbook" }) {
   const docTexts = useStore((s) => s.docTexts);
   const saveDoc = useStore((s) => s.saveDoc);
-  const [id, setId] = useState<"rules" | "world" | "handbook">("rules");
+  const [id, setId] = useState<"rules" | "world" | "handbook">(initial);
   const [text, setText] = useState<string | null>(null);
   const [summary, setSummary] = useState("");
   const [busy, setBusy] = useState(false);
@@ -255,7 +374,8 @@ function DocsCard() {
   const value = text ?? current;
   return (
     <Card title="문서 편집" desc="세계관·편람·규칙을 고쳐요. '## 제목'으로 절을 나누고, 빈 줄로 문단을 나눠요. 규칙은 최종 수정일과 변경 요약이 같이 표시돼요.">
-      <Field label="문서" htmlFor="doc-id"><Dropdown id="doc-id" value={id} onChange={(v) => { setId(v); setText(null); setSummary(""); }} options={DOC_IDS} /></Field>
+      <div className="mb-4"><Segmented value={id} onChange={(v) => { if (text !== null && !confirm("고치던 내용을 버리고 다른 문서로 갈까요?")) return; setId(v); setText(null); setSummary(""); }} options={DOC_IDS} /></div>
+      <div className="mb-3 flex items-center justify-between gap-3"><span className="font-display text-[16px] font-semibold">{DOC_IDS.find((d) => d.v === id)?.l}</span><Link href={DOC_PATH[id]} className="text-[13px] text-gold underline-offset-2 hover:underline">보기 →</Link></div>
       <Field label="내용" htmlFor="doc-text" hint={docTexts[id]?.updatedAt ? `최종 수정 ${new Date(docTexts[id].updatedAt).toLocaleString("ko-KR")}` : "아직 고친 적 없음 (기본 원문)"}>
         <Textarea id="doc-text" className="min-h-[320px] font-mono text-[13px] leading-relaxed" value={value} onChange={(e) => setText(e.target.value)} />
       </Field>

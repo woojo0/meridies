@@ -162,6 +162,7 @@ export interface Notif {
 }
 
 export interface AdminLog {
+  id?: string;
   at: number;
   text: string;
 }

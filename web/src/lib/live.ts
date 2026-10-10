@@ -6,7 +6,7 @@ import {
   EmailAuthProvider, createUserWithEmailAndPassword, onAuthStateChanged, reauthenticateWithCredential, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updatePassword, type User,
 } from "firebase/auth";
 import {
-  addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getDownloadURL, ref as sref, uploadString } from "firebase/storage";
@@ -94,7 +94,7 @@ function subscribeCore(user: User, admin: boolean) {
   sub("items", () => onSnapshot(collection(db, "items"), (s) => setData({ items: s.docs.map((d) => withId<Item>(d)) }), fail("상점")));
   sub("jobs", () => onSnapshot(collection(db, "jobs"), (s) => setData({ jobs: s.docs.map((d) => withId<Job>(d)) }), fail("아르바이트")));
   if (admin) {
-    sub("adminLog", () => onSnapshot(query(collection(db, "adminLog"), orderBy("at", "desc")), (s) => setData({ adminLog: s.docs.map((d) => d.data() as { at: number; text: string }) }), () => {}));
+    sub("adminLog", () => onSnapshot(query(collection(db, "adminLog"), orderBy("at", "desc")), (s) => setData({ adminLog: s.docs.map((d) => ({ id: d.id, ...(d.data() as { at: number; text: string }) })) }), () => {}));
     sub("users", () => onSnapshot(collection(db, "users"), (s) => useStore.setState({ users: s.docs.map((d) => ({ ...(d.data() as Omit<MemberUser, "uid">), uid: d.id })) }), () => {}));
   }
 }
@@ -398,14 +398,23 @@ export const L = {
   approveUser: (uid: string, status: MemberUser["status"]) => setDoc(doc(fbDb(), "users", uid), { status, reviewedAt: now() }, { merge: true }),
   /** 상점·아르바이트·기본 설정·기숙사 방을 운영자 권한으로 직접 심어요. */
   async seedDefaults() {
+    // 이미 있는 아이템·아르바이트는 건드리지 않아요(운영자가 고친 가격·재고 보존). 없는 것만 추가.
     const db = fbDb(); const b = writeBatch(db); const d = seed();
-    for (const i of d.items) b.set(doc(db, "items", i.id), i, { merge: true });
-    for (const j of d.jobs) b.set(doc(db, "jobs", j.id), j, { merge: true });
+    const have = async (col: string) => new Set((await getDocs(collection(db, col))).docs.map((x) => x.id));
+    const [items, jobs] = await Promise.all([have("items"), have("jobs")]);
+    let ni = 0, nj = 0;
+    for (const i of d.items) if (!items.has(i.id)) { b.set(doc(db, "items", i.id), i); ni++; }
+    for (const j of d.jobs) if (!jobs.has(j.id)) { b.set(doc(db, "jobs", j.id), j); nj++; }
     const g = await getDoc(doc(db, "settings", "global"));
     if (!g.exists()) b.set(doc(db, "settings", "global"), { stage: 0, notice: null, updatedAt: now() });
     for (const dm of DORMS) b.set(doc(db, "dorms", `${dm.id}-0`), { dorm: dm.id, stage: 0, open: true }, { merge: true });
     await b.commit();
-    return { items: d.items.length, jobs: d.jobs.length };
+    return { items: ni, jobs: nj };
+  },
+  deleteAdminLog: (id: string) => deleteDoc(doc(fbDb(), "adminLog", id)),
+  async clearAdminLog() {
+    const db = fbDb(); const all = (await getDocs(collection(db, "adminLog"))).docs;
+    for (let i = 0; i < all.length; i += 400) { const b = writeBatch(db); for (const d of all.slice(i, i + 400)) b.delete(d.ref); await b.commit(); }
   },
   async getUser(uid: string) { const s = await getDoc(doc(fbDb(), "users", uid)); return s.data() as MemberUser | undefined; },
 };
