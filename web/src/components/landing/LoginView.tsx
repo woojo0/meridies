@@ -8,7 +8,7 @@ import { auth } from "@/lib/live";
 import { useHydrated } from "@/lib/hooks";
 import { toast } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
-import { Avatar, BrandMark, DormDot } from "../ui/identity";
+import { Avatar, BrandMark, DormDot, Logo } from "../ui/identity";
 import { ToastRoot } from "../ui/overlays";
 import { Button, Field, Input, Note, RowSub, RowTitle, rowCls } from "../ui/primitives";
 
@@ -35,10 +35,8 @@ export function LoginView() {
 
   return (
     <div className="app-scale mx-auto flex min-h-dvh max-w-[460px] flex-col px-5 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-10">
-      <Link href="/" className="flex items-center gap-2.5 self-start">
-        <BrandMark size={26} />
-        <span className="font-display text-[19px] font-semibold tracking-tight">메리디에스</span>
-        <span className="lat text-[15px] text-muted">Meridies</span>
+      <Link href="/" className="flex items-center self-start text-ink">
+        <Logo height={32} />
       </Link>
 
       <div className="mt-12">

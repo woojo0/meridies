@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useOverlay } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
 import { cx } from "@/lib/format";
-import { Avatar, BrandMark } from "../ui/identity";
+import { Avatar, Logo } from "../ui/identity";
 import { IconButton } from "../ui/primitives";
 import type { Character } from "@/lib/types";
 
@@ -26,9 +26,8 @@ export function TopBar({ me, title, root, unread, wide, docWide }: { me: Charact
     <header className="sticky top-0 z-30 bg-bg/85 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
       <div className={cx("mx-auto flex h-[62px] items-center gap-2 px-5 lg:px-8", wide ? "max-w-[1330px]" : docWide ? "max-w-[960px]" : "max-w-[var(--content)]")}>
         {root ? (
-          <div className="flex min-w-0 items-center gap-2.5 lg:hidden">
-            <BrandMark size={26} />
-            <b className="font-display text-[19px] font-semibold tracking-tight">메리디에스</b>
+          <div className="flex min-w-0 items-center text-ink lg:hidden">
+            <Logo height={30} />
           </div>
         ) : (
           <>

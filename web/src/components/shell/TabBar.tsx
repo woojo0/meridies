@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { cx, money } from "@/lib/format";
 import { useMe } from "@/lib/hooks";
 import { useStore } from "@/lib/store";
-import { Avatar, BrandMark, DormDot } from "../ui/identity";
+import { Avatar, DormDot, Logo } from "../ui/identity";
 
 export const TABS = [
   { href: "/timeline", label: "타임라인", Icon: Rows3 },
@@ -69,11 +69,9 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
       )}
     >
       <div className="hidden lg:mb-8 lg:flex lg:flex-col lg:gap-1.5 lg:px-2 lg:pt-1">
-        <Link href="/timeline" className="flex items-center gap-2.5">
-          <BrandMark size={28} />
-          <span className="font-display text-[22px] font-semibold tracking-tight">메리디에스</span>
+        <Link href="/timeline" className="flex items-center text-ink" aria-label="타임라인으로">
+          <Logo height={44} />
         </Link>
-        <span className="lat text-[13px] text-muted">Imperial Academy of Lucerne</span>
       </div>
       {item(tl.href, tl.label, tl.Icon)}
       {item(dorm.href, dorm.label, dorm.Icon)}

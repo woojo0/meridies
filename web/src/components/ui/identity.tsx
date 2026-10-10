@@ -6,6 +6,19 @@ import { prof } from "@/lib/store";
 import type { Character, DormId, Stage } from "@/lib/types";
 
 /** 금빛 원 — 제국의 문장이자 검은 정오. */
+/** 워드마크 로고. 단색 마스크 PNG에 currentColor를 입혀서 라이트·다크 어디서든 글자색을 따라가요. */
+export function Logo({ height = 28, className }: { height?: number; className?: string }) {
+  const url = "url(/logo-mask.png)";
+  return (
+    <span
+      role="img"
+      aria-label="메리디에스"
+      className={cx("inline-block shrink-0 bg-current", className)}
+      style={{ height, aspectRatio: "4.217 / 1", WebkitMaskImage: url, maskImage: url, WebkitMaskSize: "contain", maskSize: "contain", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "left center", maskPosition: "left center" }}
+    />
+  );
+}
+
 export function BrandMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true" className={cx("shrink-0", className)}>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LiveDoc } from "../docs/LiveDoc";
-import { BrandMark } from "../ui/identity";
+import { Logo } from "../ui/identity";
 
 /** 비회원도 볼 수 있는 문서(세계관·규칙) 공용 레이아웃. */
 export function PublicDoc({ title, eyebrow, src, id }: { title: string; eyebrow: string; src: string; id: "world" | "rules" | "handbook" }) {
@@ -8,9 +8,8 @@ export function PublicDoc({ title, eyebrow, src, id }: { title: string; eyebrow:
     <div className="app-scale min-h-dvh">
       <header className="sticky top-0 z-30 bg-bg/85 backdrop-blur-xl">
         <div className="mx-auto flex h-[62px] max-w-[960px] items-center justify-between px-5">
-          <Link href="/" className="flex items-center gap-2.5">
-            <BrandMark size={24} />
-            <span className="font-display text-[17px] font-semibold tracking-tight">메리디에스</span>
+          <Link href="/" className="flex items-center text-ink">
+            <Logo height={28} />
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Link href="/world" className="rounded-full px-3 py-2 text-muted hover:text-ink">세계관</Link>
