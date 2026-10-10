@@ -15,10 +15,10 @@ import { seed } from "./seed";
 import { call, fbAuth, fbDb, fbStorage } from "./firebase";
 import { uid as mkId } from "./format";
 import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, Thread } from "./types";
-import { useStore, type ChatMsg, type ChatThread, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
+import { dmKey, useStore, type ChatMsg, type ChatThread, type DmThread, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
 import { increment } from "firebase/firestore";
 
-export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
+export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number; nick?: string }
 
 const subs = new Map<string, Unsubscribe>();
 function sub(key: string, start: () => Unsubscribe) {
@@ -49,10 +49,10 @@ export function startLive() {
     ready = { settings: false, chars: false };
     memberSubscribed = false;
     if (!user) {
-      useStore.setState({ session: { charId: null, admin: false, uid: null, status: null, email: null }, hydrated: true, liveError: null });
+      useStore.setState({ session: { charId: null, admin: false, uid: null, status: null, email: null, nick: null }, hydrated: true, liveError: null });
       return;
     }
-    useStore.setState({ hydrated: false, liveError: null, session: { charId: null, admin: false, uid: user.uid, status: null, email: user.email } });
+    useStore.setState({ hydrated: false, liveError: null, session: { charId: null, admin: false, uid: user.uid, status: null, email: user.email, nick: null } });
     let admin = false;
     try { admin = (await user.getIdTokenResult(true)).claims.admin === true; } catch { /* 토큰 갱신 실패해도 계속 */ }
     const db = fbDb();
@@ -60,11 +60,11 @@ export function startLive() {
     sub("user", () => onSnapshot(doc(db, "users", user.uid), (s) => {
       const u = s.data() as Omit<MemberUser, "uid"> | undefined;
       const status = u?.status ?? null;
-      useStore.setState((st) => ({ session: { ...st.session, status, charId: u?.charId ?? null, admin } }));
+      useStore.setState((st) => ({ session: { ...st.session, status, charId: u?.charId ?? null, admin, nick: u?.nick ?? null } }));
       const approved = status === "member" || admin;
       if (!approved) { useStore.setState({ hydrated: true }); return; }
-      if (!memberSubscribed) { memberSubscribed = true; subscribeCore(user, admin); if (admin) subscribeChatHeads(null, true); }
-      if (u?.charId) { subscribeMine(u.charId); if (!admin) subscribeChatHeads(u.charId, false); }
+      if (!memberSubscribed) { memberSubscribed = true; subscribeCore(user, admin); if (admin) { subscribeChatHeads(null, true); subscribeDmHeads(null, true); } }
+      if (u?.charId) { subscribeMine(u.charId); if (!admin) { subscribeChatHeads(u.charId, false); subscribeDmHeads(u.charId, false); } }
     }, (e) => {
       // 계정 문서가 없거나 못 읽음 → 가입 신청 전 상태로 취급
       useStore.setState((st) => ({ session: { ...st.session, status: null }, hydrated: true, liveError: `계정 정보를 읽지 못했어요: ${(e as Error).message}` }));
@@ -166,6 +166,30 @@ export function watchChat(charId: string) {
   }, () => {}));
 }
 export function unwatchChat(charId: string) { unsub(chatKey(charId)); }
+
+/* ───────── 오너 DM ───────── */
+const dmSubKey = (key: string) => `dm:${key}`;
+export function watchDm(key: string) {
+  const db = fbDb();
+  const st = useStore.getState();
+  const me = st.session.charId;
+  sub(dmSubKey(key), () => onSnapshot(query(collection(db, `dms/${key}/messages`), orderBy("at")), (s) => {
+    const messages = s.docs.map((d) => withId<ChatMsg>(d));
+    useStore.setState((x) => { const prev = x.dms[key]; return { dms: { ...x.dms, [key]: { key, chars: prev?.chars ?? key.split("__"), names: prev?.names, lastText: prev?.lastText ?? "", lastAt: prev?.lastAt ?? 0, unread: prev?.unread ?? {}, messages } } }; });
+    if (me && !st.session.admin && s.docs.length) setDoc(doc(db, "dms", key), { unread: { [me]: 0 } }, { merge: true }).catch(() => {});
+  }, () => {}));
+}
+export function unwatchDm(key: string) { unsub(dmSubKey(key)); }
+function subscribeDmHeads(charId: string | null, admin: boolean) {
+  const db = fbDb();
+  const apply = (docs: { id: string; data: () => unknown }[]) => useStore.setState((x) => {
+    const next = { ...x.dms };
+    for (const d of docs) { const h = d.data() as Omit<DmThread, "key" | "messages">; next[d.id] = { key: d.id, messages: next[d.id]?.messages ?? [], ...h, unread: h.unread ?? {} }; }
+    return { dms: next };
+  });
+  if (admin) sub("dmheads", () => onSnapshot(collection(db, "dms"), (s) => apply(s.docs), () => {}));
+  else if (charId) sub("dmheads", () => onSnapshot(query(collection(db, "dms"), where("chars", "array-contains", charId)), (s) => apply(s.docs), () => {}));
+}
 /** 내 대화(멤버) 또는 전체 목록(운영자)의 머리 정보를 구독해요. 로그인 시 자동. */
 function subscribeChatHeads(charId: string | null, admin: boolean) {
   const db = fbDb();
@@ -212,9 +236,9 @@ export function clearTyping(key: string, charId: string) {
 /* ───────── 인증 ───────── */
 export const auth = {
   signIn: (email: string, password: string) => signInWithEmailAndPassword(fbAuth(), email, password),
-  signUp: async (email: string, password: string) => {
+  signUp: async (email: string, password: string, nick: string) => {
     const cred = await createUserWithEmailAndPassword(fbAuth(), email, password);
-    await setDoc(doc(fbDb(), "users", cred.user.uid), { email, status: "pending", charId: null, agreedRules: true, createdAt: Date.now() });
+    await setDoc(doc(fbDb(), "users", cred.user.uid), { email, nick: nick.slice(0, 20), status: "pending", charId: null, agreedRules: true, createdAt: Date.now() });
     return cred;
   },
   signOut: () => signOut(fbAuth()),
@@ -356,6 +380,24 @@ export const L = {
     b.set(doc(db, "adminChats", charId), { charId, charName: c?.name ?? "", lastText: text.slice(0, 80), lastAt: at, ...(admin ? { unreadChar: increment(1), unreadAdmin: 0 } : { unreadAdmin: increment(1), unreadChar: 0 }) }, { merge: true });
     if (admin) b.set(doc(collection(db, "notifs")), { to: charId, text: `운영자: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`, link: { v: "inbox" }, at, read: false, from: "admin" });
     await b.commit();
+  },
+  /** 오너 DM 보내기: 메시지 + 머리글(마지막 글·안 읽음) + 상대 알림을 한 번에 */
+  async sendDm(otherCharId: string, text: string) {
+    const db = fbDb(); const s = useStore.getState(); const m = me(); const at = now();
+    const key = dmKey(m.id, otherCharId);
+    const other = s.data.chars.find((x) => x.id === otherCharId);
+    const b = writeBatch(db);
+    b.set(doc(collection(db, `dms/${key}/messages`)), { from: m.id, text: text.slice(0, 1000), at });
+    b.set(doc(db, "dms", key), { chars: [m.id, otherCharId].sort(), names: { [m.id]: m.name, [otherCharId]: other?.name ?? "" }, lastText: text.slice(0, 80), lastAt: at, unread: { [otherCharId]: increment(1), [m.id]: 0 } }, { merge: true });
+    b.set(doc(collection(db, "notifs")), { to: otherCharId, text: `${m.name} 오너${m.ownerNick ? `(${m.ownerNick})` : ""}가 DM을 보냈어요.`, link: { v: "dm", id: key }, at, read: false });
+    await b.commit();
+  },
+  /** 오너 닉네임 바꾸기: 계정 문서 + 내 캐릭터의 복사본 */
+  async setNick(nick: string) {
+    const db = fbDb(); const s = useStore.getState(); const uid = s.session.uid; if (!uid) throw new Error("로그인이 필요해요.");
+    await setDoc(doc(db, "users", uid), { nick }, { merge: true });
+    if (s.session.charId) await updateDoc(doc(db, "characters", s.session.charId), { ownerNick: nick }).catch(() => {});
+    useStore.setState((x) => ({ session: { ...x.session, nick } }));
   },
   adminMessage: (charId: string, text: string) => addDoc(collection(fbDb(), "notifs"), { to: charId, text: `운영자: ${text}`, link: { v: "timeline" }, at: now(), read: false, from: "admin" }).then(() => undefined),
   saveDoc: (id: string, text: string, summary: string) => setDoc(doc(fbDb(), "docs", id), { text, summary, public: true, updatedAt: now() }, { merge: true }),

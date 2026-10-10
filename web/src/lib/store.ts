@@ -18,7 +18,7 @@ const live = () => (require("./live") as typeof import("./live"));
 export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, number]; /** 성적·재화 조정에서 최근 고른 캐릭터 id (최신순, 최대 5) */ recentAdjust: string[] }
 export interface StudyResult { subject: string; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
 export interface JobResult { jobId: string; ok: boolean; amt: number; rate: number; grade: number }
-export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null }
+export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null; /** 오너 닉네임 */ nick: string | null }
 export type StageProfileIn = { pers?: string; text?: string; detail?: string; avatar?: string | null; body?: string | null; quote?: string; catchphrase?: string; nameLatin?: string; nameNative?: string; keywords?: string[]; nameSize?: number };
 export interface NewCharacter { name: string; dorm: DormId; gender: string; height: string; birthday?: string; scores: number[]; profiles?: Partial<Record<"0" | "1" | "2", StageProfileIn>>; secret?: string; private?: PrivateProfile }
 /** 비공개 프로필: 운영자와 본인만. */
@@ -26,7 +26,11 @@ export interface PrivateProfile { secret: string; trigger: string; growthIf: str
 export interface ChatMsg { id: string; from: "admin" | string; text: string; at: number }
 export interface ChatThread { charId: string; lastText: string; lastAt: number; unreadAdmin: number; unreadChar: number; messages: ChatMsg[] }
 export interface DocEntry { text: string; updatedAt: number; summary?: string }
-export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number }
+export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number; nick?: string }
+/** 오너 DM 한 갈래 */
+export interface DmThread { key: string; chars: string[]; names?: Record<string, string>; lastText: string; lastAt: number; unread: Record<string, number>; messages: ChatMsg[] }
+/** 두 캐릭터 id → DM 문서 id */
+export const dmKey = (a: string, b: string) => [a, b].sort().join("__");
 
 interface State {
   data: Data;
@@ -43,6 +47,7 @@ interface State {
   /** 운영자가 고친 문서(세계관·편람·규칙). 없으면 기본 원문을 써요. */
   docTexts: Record<string, DocEntry>;
   adminChats: Record<string, ChatThread>;
+  dms: Record<string, DmThread>;
   /** 타임라인에 불러온 글 수 상한(20개씩 늘어나요) */
   postLimit: number;
   postsHasMore: boolean;
@@ -125,13 +130,17 @@ interface State {
   openChat: (charId: string) => void;
   closeChat: (charId: string) => void;
   sendChat: (charId: string, text: string) => Promise<void>;
+  openDm: (key: string) => void;
+  closeDm: (key: string) => void;
+  sendDm: (otherCharId: string, text: string) => Promise<void>;
+  setNick: (nick: string) => Promise<void>;
   adjust: (charId: string, target: string, n: number, why: string) => Promise<string>;
 
   shiftTime: (h: number) => void;
   reset: () => void;
 }
 
-const emptySession = (): Session => ({ charId: null, admin: false, uid: null, status: null, email: null });
+const emptySession = (): Session => ({ charId: null, admin: false, uid: null, status: null, email: null, nick: null });
 const todayUI = (): UIPrefs => { const d = new Date(); return { shopCat: "전체", calSel: ymd(d), calMonth: [d.getFullYear(), d.getMonth()], recentAdjust: [] }; };
 
 function addInv(c: Character, id: string, n: number) { c.inv[id] = (c.inv[id] || 0) + n; if (c.inv[id] <= 0) delete c.inv[id]; }
@@ -165,6 +174,7 @@ export const useStore = create<State>()(
         privates: {},
         docTexts: {},
         adminChats: {},
+        dms: {},
         postLimit: 20,
         postsHasMore: true,
 
@@ -422,6 +432,21 @@ export const useStore = create<State>()(
         addItem: async (i) => { if (LIVE) return L().addItem(i); set((s) => { s.data.items.push({ id: uid(), name: i.name, price: i.price, cat: i.cat || "잡화", stock: i.stock, limit: 0, icon: "scarf", desc: i.desc, use: "" }); }); },
         openChat: (charId) => { if (LIVE) { live().watchChat(charId); return; } set((s) => { const t = s.adminChats[charId]; if (t) { if (s.session.admin) t.unreadAdmin = 0; else t.unreadChar = 0; } }); },
         closeChat: (charId) => { if (LIVE) live().unwatchChat(charId); },
+        openDm: (key) => { if (LIVE) { live().watchDm(key); return; } set((s) => { const t = s.dms[key]; const me = s.session.charId; if (t && me) t.unread[me] = 0; }); },
+        closeDm: (key) => { if (LIVE) live().unwatchDm(key); },
+        sendDm: async (otherCharId, text) => {
+          if (LIVE) return L().sendDm(otherCharId, text);
+          set((s) => {
+            const m = mine(s.data); if (!m) return; const now = get().now(); const key = dmKey(m.id, otherCharId);
+            const t = (s.dms[key] = s.dms[key] ?? { key, chars: [m.id, otherCharId].sort(), lastText: "", lastAt: 0, unread: {}, messages: [] });
+            t.messages.push({ id: uid(), from: m.id, text, at: now }); t.lastText = text.slice(0, 80); t.lastAt = now; t.unread[otherCharId] = (t.unread[otherCharId] ?? 0) + 1; t.unread[m.id] = 0;
+            pushNotif(s.data, otherCharId, `${m.name} 오너${m.ownerNick ? `(${m.ownerNick})` : ""}가 DM을 보냈어요.`, { v: "dm", id: key });
+          });
+        },
+        setNick: async (nick) => {
+          if (LIVE) return L().setNick(nick);
+          set((s) => { s.session.nick = nick; const m = mine(s.data); if (m) m.ownerNick = nick; });
+        },
         sendChat: async (charId, text) => {
           if (LIVE) return L().sendChat(charId, text);
           set((s) => {

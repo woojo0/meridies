@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Home, LogOut, MessageSquare, MoreHorizontal, Rows3, ShoppingBag, Users } from "lucide-react";
+import { Calendar, Home, LogOut, MessageSquare, MoreHorizontal, Rows3, ShoppingBag, Users, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -18,7 +18,7 @@ export const TABS = [
 ] as const;
 
 /** 데스크톱 레일에만 보이는 항목. 모바일은 더보기 안에 있어요. */
-const DESKTOP_ONLY = [{ href: "/characters", label: "캐릭터", Icon: Users }, { href: "/inbox", label: "문의함", Icon: MessageSquare }] as const;
+const DESKTOP_ONLY = [{ href: "/characters", label: "캐릭터", Icon: Users }, { href: "/inbox", label: "문의함", Icon: MessageSquare }, { href: "/dm", label: "오너 DM", Icon: Mail }] as const;
 
 export function isTabActive(pathname: string, href: string) {
   if (href === "/more") return pathname.startsWith("/more") || pathname === "/join";
@@ -36,9 +36,10 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
   const logout = useStore((s) => s.logout);
   const admin = useStore((s) => s.session.admin);
   const inboxUnread = useStore((s) => s.session.admin ? Object.values(s.adminChats).reduce((a, t) => a + (t.unreadAdmin || 0), 0) : (s.session.charId ? s.adminChats[s.session.charId]?.unreadChar ?? 0 : 0));
+  const dmUnread = useStore((s) => s.session.charId ? Object.values(s.dms).reduce((a, t) => a + (t.unread?.[s.session.charId!] ?? 0), 0) : 0);
   const item = (href: string, label: string, Icon: typeof Rows3, desktopOnly = false) => {
     const on = isTabActive(pathname, href);
-    const badge = href === "/inbox" ? inboxUnread : 0;
+    const badge = href === "/inbox" ? inboxUnread : href === "/dm" ? dmUnread : 0;
     return (
       <Link
         key={href}
@@ -76,7 +77,7 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
       </div>
       {item(tl.href, tl.label, tl.Icon)}
       {item(dorm.href, dorm.label, dorm.Icon)}
-      {DESKTOP_ONLY.filter((d) => d.href !== "/inbox" || admin || !!me).map((d) => item(d.href, d.label, d.Icon, true))}
+      {DESKTOP_ONLY.filter((d) => (d.href !== "/inbox" && d.href !== "/dm") || admin || !!me).map((d) => item(d.href, d.label, d.Icon, true))}
       {item(cal.href, cal.label, cal.Icon)}
       {item(shop.href, shop.label, shop.Icon)}
       {item(more.href, more.label, more.Icon)}

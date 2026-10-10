@@ -165,7 +165,7 @@ const h_createCharacter = handler<{ name: string; dorm: string; gender: string; 
     const sc = {} as Record<SubjectId, number>;
     SUBJECTS.forEach((s, i) => (sc[s.id] = scores[i]));
     tx.set(ref, {
-      name: name.trim(), dorm, ownerUid: uid, money: START_MONEY, inv: {}, scores: sc,
+      name: name.trim(), dorm, ownerUid: uid, ownerNick: typeof u.nick === "string" ? u.nick.slice(0, 20) : "", money: START_MONEY, inv: {}, scores: sc,
       profiles,
       createdAt: Date.now(),
     });

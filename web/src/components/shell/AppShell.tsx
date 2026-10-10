@@ -19,9 +19,9 @@ const TITLES: Record<string, string> = {
   "/timeline": "타임라인", "/dorm": "기숙사", "/calendar": "달력", "/shop": "상점", "/more": "더보기", "/characters": "캐릭터",
   "/more/world": "공개 세계관", "/more/handbook": "루체른 생활 편람", "/more/rules": "규칙", "/more/characters": "캐릭터 목록", "/more/admin": "운영자 도구",
   "/join": "캐릭터 등록",
-  "/inbox": "운영자 문의",
+  "/inbox": "운영자 문의", "/dm": "오너 DM",
 };
-const titleFor = (pathname: string) => TITLES[pathname] ?? (/^\/profile\/[^/]+\/edit$/.test(pathname) ? "프로필 수정" : pathname.startsWith("/profile/") ? "프로필" : pathname.startsWith("/room/") ? "역극" : "");
+const titleFor = (pathname: string) => TITLES[pathname] ?? (/^\/profile\/[^/]+\/edit$/.test(pathname) ? "프로필 수정" : pathname.startsWith("/profile/") ? "프로필" : pathname.startsWith("/room/") ? "역극" : pathname.startsWith("/dm/") ? "오너 DM" : "");
 
 export function useUnreadCount() {
   const me = useMe();
@@ -155,7 +155,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const pageTitle = title ?? titleFor(pathname);
   const wide = pathname.startsWith("/profile/") || pathname === "/characters" || pathname === "/join";
   const docWide = ["/more/world", "/more/handbook", "/more/rules"].includes(pathname);
-  const adminWide = pathname === "/more/admin" || pathname === "/inbox";
+  const adminWide = pathname === "/more/admin" || pathname === "/inbox" || pathname.startsWith("/dm");
 
   return (
     <div className="app-scale lg:pl-[var(--rail)]">

@@ -62,18 +62,20 @@ function EmailAuth() {
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [agree, setAgree] = useState(false);
+  const [nick, setNick] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     if (!email.trim() || !pw) { toast("이메일과 비밀번호를 넣어 주세요."); return; }
     if (mode === "up") {
       if (pw !== pw2) { toast("비밀번호가 서로 달라요."); return; }
+      if (!nick.trim() || nick.trim().length > 20) { toast("오너 닉네임을 1~20자로 넣어 주세요."); return; }
       if (!agree) { toast("규칙에 동의해 주세요."); return; }
     }
     setBusy(true);
     try {
       if (mode === "in") await auth.signIn(email.trim(), pw);
-      else { await auth.signUp(email.trim(), pw); toast("가입 신청을 보냈어요. 운영자 승인을 기다려 주세요."); }
+      else { await auth.signUp(email.trim(), pw, nick.trim()); toast("가입 신청을 보냈어요. 운영자 승인을 기다려 주세요."); }
     } catch (e) {
       const code = (e as { code?: string }).code ?? "";
       toast(AUTH_MSG[code] ?? "로그인에 실패했어요.");
@@ -95,6 +97,7 @@ function EmailAuth() {
         {mode === "up" && (
           <>
             <Field label="비밀번호 확인" htmlFor="lg-pw2"><Input id="lg-pw2" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} /></Field>
+            <Field label="오너 닉네임" htmlFor="lg-nick" hint="캐릭터 프로필에 표시돼요. 다른 오너가 이 이름을 눌러 DM을 보낼 수 있고, 오너 간 DM은 운영진이 열람할 수 있어요. 나중에 바꿀 수 있어요."><Input id="lg-nick" maxLength={20} autoComplete="nickname" value={nick} onChange={(e) => setNick(e.target.value)} /></Field>
             <label className="mb-4 flex cursor-pointer items-start gap-2.5 text-[13.5px] leading-snug">
               <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 size-4 accent-gold" />
               <span><Link href="/rules" target="_blank" className="underline underline-offset-2">규칙</Link>을 읽었고 동의해요. 가입은 운영자 승인 뒤에 완료돼요.</span>

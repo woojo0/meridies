@@ -83,6 +83,7 @@ export function AdminView() {
         <>
           {LIVE && <MembersCard />}
           <InboxCard />
+          <DmCard />
           <CharactersGrid />
           <Card title="학부" desc="학부 배정은 플레이어가 프로필을 쓸 때 직접 고르고, 기숙사 배정도 그 선택을 따라요.">
             <div className="grid grid-cols-5 gap-1.5">
@@ -255,6 +256,28 @@ function SeedCard() {
   );
 }
 
+/** 오너 DM 열람: 모든 대화 목록 */
+function DmCard() {
+  const dms = useStore((s) => s.dms);
+  const chars = useStore((s) => s.data.chars);
+  const now = useNow();
+  const list = Object.values(dms).sort((a, b) => (b.lastAt ?? 0) - (a.lastAt ?? 0));
+  const label = (id: string) => { const c = chars.find((x) => x.id === id); return c ? `${c.name}${c.ownerNick ? ` (${c.ownerNick})` : ""}` : "(삭제된 캐릭터)"; };
+  return (
+    <Card title={`오너 DM 열람${list.length ? ` · ${list.length}건` : ""}`} desc="오너끼리 주고받는 DM이에요. 운영진은 읽기만 할 수 있고, 회원에게는 운영진이 열람할 수 있다고 안내돼 있어요.">
+      <div className="divide-y divide-line">
+        {list.slice(0, 8).map((t) => (
+          <Link key={t.key} href={`/dm/${t.key}`} className="flex items-center gap-3 py-2.5 text-sm hover:bg-sunk/40">
+            <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{t.chars.map(label).join(" ↔ ")}</span><span className="block truncate text-xs text-muted">{t.lastText || "대화 시작 전"}{t.lastAt ? ` · ${ago(t.lastAt, now)}` : ""}</span></span>
+          </Link>
+        ))}
+        {!list.length && <Empty className="py-2 text-left">아직 오너 DM이 없어요.</Empty>}
+      </div>
+      {list.length > 8 && <Link href="/dm" className="mt-2 inline-block text-[13px] text-gold underline-offset-2 hover:underline">전체 보기 →</Link>}
+    </Card>
+  );
+}
+
 /** 가입 승인·정지, 초기 데이터 심기 (실제 서버 모드) */
 function MembersCard() {
   const users = useStore((s) => s.users);
@@ -273,7 +296,7 @@ function MembersCard() {
     return (
       <div key={u.uid} className="flex items-center gap-3 py-2.5 text-sm">
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">{u.email}</span>
+          <span className="block truncate font-semibold">{u.email}{u.nick ? <span className="ml-1.5 font-normal text-muted">· {u.nick}</span> : null}</span>
           <span className="block text-xs text-muted">{u.status === "pending" ? "승인 대기" : u.status === "member" ? (c ? `캐릭터: ${c.name}` : "캐릭터 미등록") : "정지됨"}</span>
         </span>
         {u.status !== "member" && <Button size="sm" disabled={busy === u.uid} onClick={() => act(u.uid, "member")}>승인</Button>}

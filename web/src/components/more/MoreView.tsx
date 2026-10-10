@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ChevronRight, KeyRound, Lock, LogOut, MessageSquare, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
+import { AtSign, BookOpen, ChevronRight, KeyRound, Lock, LogOut, Mail, MessageSquare, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { H } from "@/lib/constants";
@@ -65,6 +65,7 @@ export function MoreView() {
         <MenuRow href="/more/rules" icon={<Lock size={ic} strokeWidth={1.6} />} title="규칙" sub="커뮤 운영 규칙" />
         <MenuRow href="/more/characters" icon={<Users size={ic} strokeWidth={1.6} />} title="캐릭터 목록" sub={`${chars.length}명`} />
         {(me || st.session.admin) && <MenuRow href="/inbox" icon={<MessageSquare size={ic} strokeWidth={1.6} />} title="운영자 문의함" sub={st.session.admin ? "멤버가 보낸 메시지 확인·답장" : "운영자와 1:1로 메시지 주고받기"} />}
+        {(me || st.session.admin) && <MenuRow href="/dm" icon={<Mail size={ic} strokeWidth={1.6} />} title="오너 DM" sub={st.session.admin ? "오너 간 DM 열람 (운영진 열람 가능)" : "다른 오너와 조율 · 운영진이 열람할 수 있어요"} />}
         {!LIVE && <MenuRow href="/join" icon={<Plus size={ic} strokeWidth={1.6} />} title="캐릭터 등록" sub="성적 2,000점 분배 · 데모에서는 여러 명 가능" />}
       </div>
 
@@ -79,6 +80,7 @@ export function MoreView() {
           </ChipRow>
           <p className="mt-1 text-xs text-muted">밤에 역극하는 사용자를 위해 어두운 화면을 기본 지원해요.</p>
         </div>
+        {(me || LIVE) && <MenuRow icon={<AtSign size={ic} strokeWidth={1.6} />} title="오너 닉네임" sub={(LIVE ? st.session.nick : me?.ownerNick) || "아직 없어요 · 눌러서 정하기"} onClick={() => openSheet(<NickSheet />)} />}
         {LIVE && <MenuRow icon={<KeyRound size={ic} strokeWidth={1.6} />} title="비밀번호 변경" sub={st.session.email ?? ""} onClick={() => openSheet(<PasswordSheet />)} />}
         <MenuRow icon={<LogOut size={ic} strokeWidth={1.6} />} title="로그아웃" sub="계정에서 나가기" onClick={async () => { await st.logout(); router.replace("/"); }} />
       </div>
@@ -161,6 +163,26 @@ function ResetSheet() {
       <SheetActions>
         <Button variant="ghost" onClick={closeSheet}>취소</Button>
         <Button variant="ink" onClick={() => { reset(); closeSheet(); router.replace("/login"); toast("처음 상태로 되돌렸어요."); }}>되돌리기</Button>
+      </SheetActions>
+    </>
+  );
+}
+
+/** 오너 닉네임 바꾸기 */
+function NickSheet() {
+  const closeSheet = useOverlay((s) => s.closeSheet);
+  const cur = useStore((s) => (LIVE ? s.session.nick : s.data.chars.find((c) => c.id === s.session.charId)?.ownerNick) ?? "");
+  const setNick = useStore((s) => s.setNick);
+  const [v, setV] = useState(cur);
+  const [busy, setBusy] = useState(false);
+  const bad = !v.trim() || v.trim().length > 20;
+  return (
+    <>
+      <SheetTitle sub="캐릭터 프로필에 표시돼요. 다른 오너가 이 이름을 눌러 DM을 보낼 수 있고, 오너 간 DM은 운영진이 열람할 수 있어요.">오너 닉네임</SheetTitle>
+      <Field label="닉네임" htmlFor="nick-in" hint="1~20자"><Input id="nick-in" maxLength={20} value={v} onChange={(e) => setV(e.target.value)} /></Field>
+      <SheetActions>
+        <Button variant="ghost" onClick={closeSheet}>취소</Button>
+        <Button disabled={bad || busy} onClick={async () => { setBusy(true); try { await setNick(v.trim()); toast("닉네임을 바꿨어요."); closeSheet(); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}>{busy ? "저장 중…" : "저장"}</Button>
       </SheetActions>
     </>
   );

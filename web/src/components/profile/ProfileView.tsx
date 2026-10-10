@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BookOpen, Briefcase, Pencil } from "lucide-react";
+import { ArrowRightLeft, BookOpen, Briefcase, Mail, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GRADES, JOB_MS, RATION, SOLIS_LABEL, STAGES, STAGE_GRADE, STUDY_MS, dorm as dormOf } from "@/lib/constants";
@@ -9,7 +9,7 @@ import { BgmPlayer } from "./BgmPlayer";
 import { ago, cx, fmtDur, gIdx, money } from "@/lib/format";
 import { useDesktop, useMe, useTick } from "@/lib/hooks";
 import { useOverlay } from "@/lib/overlay";
-import { prof, useStore, type PrivateProfile } from "@/lib/store";
+import { dmKey, prof, useStore, type PrivateProfile } from "@/lib/store";
 import type { Character, Profile, Stage } from "@/lib/types";
 import { RoomList } from "../rp/RoomList";
 import { InvItemSheet } from "../shop/ItemSheet";
@@ -93,7 +93,13 @@ export function ProfileView({ c: base }: { c: Character }) {
   const keywordChips = p.keywords?.length ? (
     <div className="mt-3 flex flex-wrap gap-1.5">{p.keywords.map((k) => <span key={k} className="rounded-full bg-gold-soft px-2.5 py-0.5 text-[12px] text-gold">{k}</span>)}</div>
   ) : null;
+  const ownerCell = c.ownerNick
+    ? (me && me.id !== c.id
+      ? <Link key="o" href={`/dm/${dmKey(me.id, c.id)}`} title="오너에게 DM 보내기 · 오너 간 DM은 운영진이 열람할 수 있어요" className="inline-flex items-center gap-1 text-gold underline-offset-2 hover:underline">{c.ownerNick}<Mail size={13} strokeWidth={1.8} /></Link>
+      : <span key="o">{c.ownerNick}{mine && <span className="ml-1.5 text-[12px] text-muted">· 다른 오너가 눌러 DM을 보낼 수 있어요</span>}</span>)
+    : "-";
   const kvRows: [string, React.ReactNode][] = [
+    ["오너", ownerCell],
     ["나이", p.age || "-"], ["학년", STAGE_GRADE[st]], ["학부", <span key="d" className="inline-flex items-center gap-1.5"><Crest id={c.dorm} size={14} />{d.name}</span>], ["성격", p.pers || "-"],
     ...((p.extra ?? []).filter((x) => x.k.trim()).map((x) => [x.k, x.v || "-"] as [string, React.ReactNode])),
   ];

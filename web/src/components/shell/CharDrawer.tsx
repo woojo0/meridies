@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, MessageSquare, X } from "lucide-react";
+import { ChevronRight, Mail, MessageSquare, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -30,6 +30,7 @@ export function CharDrawer() {
   const chat = useStore((s) => (s.session.charId ? s.adminChats[s.session.charId] : undefined));
   const markAllNotifs = useStore((s) => s.markAllNotifs);
   const clearReadNotifs = useStore((s) => s.clearReadNotifs);
+  const dmUnread = useStore((s) => (s.session.charId ? Object.values(s.dms).reduce((a, t) => a + (t.unread?.[s.session.charId!] ?? 0), 0) : 0));
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -47,7 +48,7 @@ export function CharDrawer() {
   const myNotifs = notifs.filter((x) => x.to === c);
   const chatUnread = chat?.unreadChar ?? 0;
   const chatLast = chat?.lastText ?? "";
-  const nCount = myNotifs.filter((x) => !x.read).length + (studyReady ? 1 : 0) + (jobReady ? 1 : 0) + chatUnread;
+  const nCount = myNotifs.filter((x) => !x.read).length + (studyReady ? 1 : 0) + (jobReady ? 1 : 0) + chatUnread + dmUnread;
   const d = dormOf(me.dorm);
 
   const tabs = [
@@ -98,6 +99,11 @@ export function CharDrawer() {
               <span className="min-w-0 flex-1"><RowTitle>운영자 문의함{chatUnread > 0 ? ` · ${chatUnread}` : ""}</RowTitle><RowSub>{chatLast || "운영자에게 직접 묻고 답을 받아요"}</RowSub></span>
               <ChevronRight size={18} className="text-muted" />
             </Link>
+            <Link href="/dm" onClick={closeDrawer} className="card mb-3 flex items-center gap-3 p-3.5 transition-colors hover:bg-sunk/60">
+              <span className="grid size-9 place-items-center rounded-full bg-gold-soft text-gold"><Mail size={17} strokeWidth={1.7} /></span>
+              <span className="min-w-0 flex-1"><RowTitle>오너 DM{dmUnread > 0 ? ` · ${dmUnread}` : ""}</RowTitle><RowSub>다른 오너와 조율 · 운영진이 열람할 수 있어요</RowSub></span>
+              <ChevronRight size={18} className="text-muted" />
+            </Link>
             {myNotifs.length > 0 && (
               <div className="mb-2 flex justify-end gap-1.5">
                 <Button size="sm" variant="ghost" disabled={!myNotifs.some((n) => !n.read)} onClick={async () => { try { await markAllNotifs(); } catch (e) { toast((e as Error).message); } }}>전체 확인</Button>
@@ -123,6 +129,7 @@ export function CharDrawer() {
                   onClick={() => {
                     markNotif(x.id); closeDrawer();
                     if (x.link?.v === "inbox") router.push("/inbox");
+                    else if (x.link?.v === "dm") router.push(`/dm/${x.link.id}`);
                     else if (x.link?.v === "room") router.push(`/room/${x.link.id}`);
                     else if (x.link?.v === "profile") router.push(`/profile/${x.link.id}`);
                     else router.push("/timeline");

@@ -153,6 +153,22 @@ service cloud.firestore {
       }
     }
 
+    // ───────── 오너 DM: 두 캐릭터(오너)끼리. 운영진은 열람만 ─────────
+    // 문서 id = 두 캐릭터 id를 정렬해 "__"로 이은 값. chars 배열에 내 캐릭터가 있어야 해요.
+    match /dms/{key} {
+      allow read: if isAdmin() || (isMember() && myCharId() in resource.data.chars);
+      allow create: if isMember() && request.resource.data.chars is list && request.resource.data.chars.size() == 2 && myCharId() in request.resource.data.chars;
+      allow update: if isAdmin() || (isMember() && myCharId() in resource.data.chars && request.resource.data.chars == resource.data.chars);
+      allow delete: if isAdmin();
+      match /messages/{msgId} {
+        allow read: if isAdmin() || (isMember() && myCharId() in get(/databases/$(database)/documents/dms/$(key)).data.chars);
+        allow create: if isMember() && request.resource.data.from == myCharId()
+          && myCharId() in getAfter(/databases/$(database)/documents/dms/$(key)).data.chars
+          && request.resource.data.text is string && request.resource.data.text.size() <= 1000;
+        allow update, delete: if isAdmin();
+      }
+    }
+
     // ───────── 알림 ─────────
     match /notifs/{notifId} {
       allow read: if isMember() && resource.data.to == myCharId();

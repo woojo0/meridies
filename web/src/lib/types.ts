@@ -46,6 +46,8 @@ export interface Character {
   name: string;
   dorm: DormId;
   owner: string;
+  /** 오너 닉네임 (users.nick 복사본) */
+  ownerNick?: string;
   money: number;
   inv: Record<string, number>;
   profiles: Partial<Record<Stage, Profile>>;
