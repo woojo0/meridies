@@ -11,7 +11,7 @@ import { dmKey, useStore, type ChatMsg } from "@/lib/store";
 import { Avatar } from "../ui/identity";
 import { Empty, Note } from "../ui/primitives";
 
-export const DM_NOTICE = "오너 간 DM은 운영진이 열람할 수 있어요. 커뮤 운영과 분쟁 조정을 위한 조치예요.";
+export const DM_NOTICE = "오너 간 DM은 운영진이 열람할 수 있습니다.";
 
 /** 오너 DM 목록. 멤버: 내 대화. 운영자: 모든 대화(열람). */
 export function DmListView() {
@@ -26,7 +26,7 @@ export function DmListView() {
   if (!admin && !me) return <Empty className="py-16">캐릭터를 등록하면 다른 오너와 DM을 주고받을 수 있어요.</Empty>;
   return (
     <>
-      <Note className="mt-2">{admin ? "운영자 열람 모드예요. 모든 오너 DM을 읽을 수 있고, 보낼 수는 없어요." : `${DM_NOTICE} 상대 오너와 처음 DM을 시작하려면 그 캐릭터 프로필에서 오너 닉네임을 누르세요.`}</Note>
+      <Note className="mt-2">{admin ? "운영자 열람 모드예요. 모든 오너 DM을 읽을 수 있고, 보낼 수는 없어요." : DM_NOTICE}</Note>
       <div className="card-flat mt-3">
         {list.map((t) => {
           const other = me && !admin ? t.chars.find((id) => id !== me.id) ?? t.chars[0] : null;
