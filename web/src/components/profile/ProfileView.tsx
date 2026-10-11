@@ -93,13 +93,16 @@ export function ProfileView({ c: base }: { c: Character }) {
   const keywordChips = p.keywords?.length ? (
     <div className="mt-3 flex flex-wrap gap-1.5">{p.keywords.map((k) => <span key={k} className="rounded-full bg-gold-soft px-2.5 py-0.5 text-[12px] text-gold">{k}</span>)}</div>
   ) : null;
-  const ownerCell = c.ownerNick
-    ? (me && me.id !== c.id
-      ? <Link key="o" href={`/dm/${dmKey(me.id, c.id)}`} title="오너에게 DM 보내기 · 오너 간 DM은 운영진이 열람할 수 있어요" className="inline-flex items-center gap-1 text-gold underline-offset-2 hover:underline">{c.ownerNick}<Mail size={13} strokeWidth={1.8} /></Link>
-      : <span key="o">{c.ownerNick}{mine && <span className="ml-1.5 text-[12px] text-muted">· 다른 오너가 눌러 DM을 보낼 수 있어요</span>}</span>)
-    : "-";
+  // 오너 카드: 오른쪽 열 맨 아래. 다른 오너가 누르면 DM으로 가요.
+  const ownerCard = c.ownerNick ? (
+    <section className="card mt-4 flex items-center justify-between gap-3 px-6 py-4">
+      <span className="text-[12px] tracking-[.06em] text-muted">오너</span>
+      {me && me.id !== c.id
+        ? <Link href={`/dm/${dmKey(me.id, c.id)}`} className="inline-flex items-center gap-1.5 font-semibold text-gold underline-offset-2 hover:underline">{c.ownerNick}<Mail size={14} strokeWidth={1.8} /></Link>
+        : <span className="font-semibold">{c.ownerNick}</span>}
+    </section>
+  ) : null;
   const kvRows: [string, React.ReactNode][] = [
-    ["오너", ownerCell],
     ["나이", p.age || "-"], ["학년", STAGE_GRADE[st]], ["학부", <span key="d" className="inline-flex items-center gap-1.5"><Crest id={c.dorm} size={14} />{d.name}</span>], ["성격", p.pers || "-"],
     ...((p.extra ?? []).filter((x) => x.k.trim()).map((x) => [x.k, x.v || "-"] as [string, React.ReactNode])),
   ];
@@ -172,6 +175,7 @@ export function ProfileView({ c: base }: { c: Character }) {
           </section>
           {detailBlock}
           {secretCard}
+          {ownerCard}
 
           <Tabs<Tab> className="mt-6" value={tab === "profile" || tab === "body" ? "grades" : tab} onChange={setTab} tabs={[{ k: "grades", l: "성적" }, { k: "inv", l: "인벤토리" }, { k: "rp", l: "역극" }]} />
           <div className="min-h-[560px]">
@@ -234,6 +238,7 @@ export function ProfileView({ c: base }: { c: Character }) {
           </div>
           {detailBlock}
           {secretCard}
+          {ownerCard}
           <SectionHead size="sm" title="역극 리스트" aside={`${roomsN}개`} />
           <div className="card-flat"><RoomList charId={c.id} /></div>
         </>
