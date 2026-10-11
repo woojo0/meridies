@@ -17,7 +17,7 @@ export function CharactersView() {
   const list = chars.filter((c) => dorm === "all" || c.dorm === dorm).sort((a, b) => a.name.localeCompare(b.name, "ko"));
   return (
     <>
-      <ChipRow className="flex-wrap overflow-visible pt-2">
+      <ChipRow className="flex-wrap overflow-x-visible pt-2">
         <Chip on={dorm === "all"} onClick={() => setDorm("all")}>전체</Chip>
         {DORMS.map((d) => (
           <Chip key={d.id} on={dorm === d.id} onClick={() => setDorm(d.id)}><Crest id={d.id} size={14} />{d.name}</Chip>
