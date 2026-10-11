@@ -14,7 +14,9 @@ export function CharactersView() {
   const chars = useStore((s) => s.data.chars);
   const stage = useStore((s) => s.data.stage);
   const [dorm, setDorm] = useState<DormId | "all">("all");
-  const list = chars.filter((c) => dorm === "all" || c.dorm === dorm).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  // 학부 순서(아우로라→베스퍼→칸디다→아스트라→제5학부), 같은 학부 안에서는 이름순
+  const dormOrder = (id: DormId) => DORMS.findIndex((d) => d.id === id);
+  const list = chars.filter((c) => dorm === "all" || c.dorm === dorm).sort((a, b) => dormOrder(a.dorm) - dormOrder(b.dorm) || a.name.localeCompare(b.name, "ko"));
   return (
     <>
       <ChipRow className="flex-wrap overflow-x-visible pt-2">
