@@ -13,6 +13,7 @@ import { Avatar } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
 import { Button, Chip, ChipRow, Field, Input, Note, RowSub, RowTitle, SectionHead, rowCls } from "../ui/primitives";
 import { useState } from "react";
+import { PushCard } from "./PushCard";
 
 function MenuRow({ href, icon, title, sub, onClick }: { href?: string; icon: React.ReactNode; title: string; sub: string; onClick?: () => void }) {
   const inner = (
@@ -68,6 +69,8 @@ export function MoreView() {
         {(me || st.session.admin) && <MenuRow href="/dm" icon={<Mail size={ic} strokeWidth={1.6} />} title="오너 DM" sub={st.session.admin ? "오너 간 DM 열람 (운영진 열람 가능)" : "다른 오너와 조율 · 운영진이 열람할 수 있어요"} />}
         {!LIVE && <MenuRow href="/join" icon={<Plus size={ic} strokeWidth={1.6} />} title="캐릭터 등록" sub="성적 2,000점 분배 · 데모에서는 여러 명 가능" />}
       </div>
+
+      {LIVE && (<><SectionHead title="푸시 알림" aside="기기마다 추가" /><PushCard /></>)}
 
       <SectionHead title="설정" />
       <div className="card-flat">

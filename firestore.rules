@@ -26,6 +26,12 @@ service cloud.firestore {
       // 본인은 상태·캐릭터 연결을 못 바꿈. 승인은 운영자만.
       allow update: if (signedIn() && request.auth.uid == uid && unchanged(['status', 'charId', 'email'])) || isAdmin();
       allow delete: if isAdmin();
+
+      // 웹 푸시 기기 토큰: 본인만. 서버(Functions)가 읽어서 보내요.
+      match /devices/{token} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+        allow read, delete: if isAdmin();
+      }
     }
 
     // ───────── 캐릭터 ─────────

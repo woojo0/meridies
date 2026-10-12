@@ -123,7 +123,18 @@ cd ~/meridies && npm install firebase-admin && node scripts/set-admin.mjs 운영
 - 끝나면 사이트에서 그 이메일·비밀번호로 로그인 → **더보기 → 운영자 도구** → **초기 데이터 심기**를 한 번 누릅니다 (상점·아르바이트·기본 설정).
 - 이후 가입 신청은 같은 화면의 **가입 승인**에서 처리합니다.
 
-## 11. 어떻게 돌아가나
+## 11. 웹 푸시 (기기 알림)
+
+더보기 → 푸시 알림 → "이 기기 추가하기"가 동작하려면 웹 푸시 키(VAPID)가 필요해요.
+
+1. Firebase 콘솔 → 프로젝트 설정(톱니) → **클라우드 메시징** 탭 → 아래 **웹 푸시 인증서** → **키 쌍 생성**.
+2. 생긴 키(긴 문자열)를 복사해서
+   - 로컬: `web/.env.local`에 `NEXT_PUBLIC_FIREBASE_VAPID_KEY=복사한키`
+   - Vercel: 프로젝트 → Settings → Environment Variables → 같은 이름으로 추가 → Redeploy.
+3. 규칙·Functions를 다시 배포해요 (10단계와 같은 명령). `pushOnNotif` 함수가 새로 생겨요.
+4. 아이폰은 Safari → 공유 → "홈 화면에 추가"로 설치한 앱에서만 추가할 수 있어요. 안드로이드·PC Chrome은 바로 돼요.
+
+## 12. 어떻게 돌아가나
 
 - 로그인: 이메일/비밀번호. 가입은 `pending` → 운영자 승인 → `member`.
 - 데이터: Firestore 실시간 구독. 타임라인·역극·기숙사·알림이 다른 사람 화면에 바로 반영.

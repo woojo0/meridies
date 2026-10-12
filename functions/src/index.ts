@@ -7,6 +7,8 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, Transaction, DocumentReference } from "firebase-admin/firestore";
 import { HttpsError, onCall, CallableRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import {
   DORMS, FORTUNES, GRADES, H, HEARTS, ITEMS, JOBS, JOB_MS, JOB_PER_DAY, JOKBO, KW_COST, KW_MAX_ALLOC, LETTER_MS, LOST_LETTER_RATE,
   RARE_DOLL_RATE, RATION, START_MONEY, STAGES, STUDY_MS, STUDY_PER_DAY, SUBJECTS, TOTAL_ALLOC, TRANSFER_FEE, TRANSFER_MIN, type SubjectId,
@@ -553,6 +555,36 @@ const h_allocateStage1 = handler<{ charId?: string; electives: string[]; alloc: 
 );
 HANDLERS["allocateStage1"] = h_allocateStage1 as Handler<never>;
 export const allocateStage1 = fn(h_allocateStage1);
+
+/* ───────── 웹 푸시: notifs 문서가 생기면 그 캐릭터 오너의 기기들로 보내요 ───────── */
+const LINK_PATH = (link?: { v?: string; id?: string }) => {
+  switch (link?.v) {
+    case "room": return link.id ? `/room/${link.id}` : "/timeline";
+    case "profile": return link.id ? `/profile/${link.id}` : "/timeline";
+    case "inbox": return "/inbox";
+    case "dm": return link.id ? `/dm/${link.id}` : "/dm";
+    default: return "/timeline";
+  }
+};
+export const pushOnNotif = onDocumentCreated({ document: "notifs/{id}", region: REGION, memory: "256MiB" }, async (ev) => {
+  const n = ev.data?.data() as { to?: string; text?: string; link?: { v?: string; id?: string } } | undefined;
+  if (!n?.to || !n.text) return;
+  const c = (await db.doc(`characters/${n.to}`).get()).data() as { ownerUid?: string } | undefined;
+  if (!c?.ownerUid) return;
+  const devs = await db.collection(`users/${c.ownerUid}/devices`).get();
+  const tokens = devs.docs.map((d) => d.id);
+  if (!tokens.length) return;
+  const link = LINK_PATH(n.link);
+  const res = await getMessaging().sendEachForMulticast({
+    tokens,
+    notification: { title: "메리디에스", body: n.text.slice(0, 200) },
+    data: { title: "메리디에스", body: n.text.slice(0, 200), link },
+    webpush: { notification: { icon: "/icon-192.png", badge: "/icon-192.png", tag: `meridies-${n.link?.v ?? "n"}-${n.link?.id ?? ""}` }, fcmOptions: { link }, headers: { Urgency: "high" } },
+  });
+  // 만료·해지된 토큰은 치워요.
+  const dead = res.responses.map((r, i) => (!r.success && /registration-token-not-registered|invalid-argument/.test(r.error?.code ?? "") ? tokens[i] : null)).filter((t): t is string => !!t);
+  if (dead.length) { const b = db.batch(); for (const t of dead) b.delete(db.doc(`users/${c.ownerUid}/devices/${t}`)); await b.commit(); }
+});
 
 /* ───────── 내보내기: 개별 함수 + 단일 진입점 api ───────── */
 HANDLERS["setAdmin"] = h_setAdmin as Handler<never>;
