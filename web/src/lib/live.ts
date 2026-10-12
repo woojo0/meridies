@@ -14,7 +14,7 @@ import { DORMS } from "./constants";
 import { seed } from "./seed";
 import { call, fbAuth, fbDb, fbStorage } from "./firebase";
 import { uid as mkId } from "./format";
-import type { CalEvent, Character, DormId, Item, Job, Msg, Post, Profile, Room, Stage, Thread } from "./types";
+import type { CalEvent, Character, DormId, Item, Job, Msg, Notif, NotifKind, Post, Profile, Room, Stage, Thread } from "./types";
 import { dmKey, useStore, type ChatMsg, type ChatThread, type DmThread, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
 import { increment } from "firebase/firestore";
 
@@ -60,10 +60,18 @@ export function startLive() {
     sub("user", () => onSnapshot(doc(db, "users", user.uid), (s) => {
       const u = s.data() as Omit<MemberUser, "uid"> | undefined;
       const status = u?.status ?? null;
-      useStore.setState((st) => ({ session: { ...st.session, status, charId: u?.charId ?? null, admin, nick: u?.nick ?? null } }));
+      useStore.setState((st) => ({ session: { ...st.session, status, charId: u?.charId ?? null, admin, nick: u?.nick ?? null }, ui: { ...st.ui, notify: (u as { notify?: Record<string, boolean> } | undefined)?.notify ?? st.ui.notify ?? {} } }));
       const approved = status === "member" || admin;
       if (!approved) { useStore.setState({ hydrated: true }); return; }
-      if (!memberSubscribed) { memberSubscribed = true; subscribeCore(user, admin); if (admin) { subscribeChatHeads(null, true); subscribeDmHeads(null, true); } }
+      if (!memberSubscribed) {
+        memberSubscribed = true; subscribeCore(user, admin);
+        if (admin) {
+          subscribeChatHeads(null, true); subscribeDmHeads(null, true);
+          // 운영자 표시(푸시 서버가 운영자 기기를 찾을 때 씀) + 운영자에게 온 알림
+          setDoc(doc(db, "users", user.uid), { admin: true }, { merge: true }).catch(() => {});
+          sub("admin:notifs", () => onSnapshot(query(collection(db, "notifs"), where("to", "==", "admin"), orderBy("at", "desc"), limit(50)), (s) => useStore.setState({ adminNotifs: s.docs.map((d) => withId<Notif>(d)) }), () => {}));
+        }
+      }
       if (u?.charId) { subscribeMine(u.charId); if (!admin) { subscribeChatHeads(u.charId, false); subscribeDmHeads(u.charId, false); } }
     }, (e) => {
       // 계정 문서가 없거나 못 읽음 → 가입 신청 전 상태로 취급
@@ -294,7 +302,7 @@ export const L = {
     const b = writeBatch(db);
     b.set(roomRef, { members: [p.charId, m.id], source: { postId: p.id, charId: p.charId, stage: p.stage, text: p.text, images: p.images, at: p.at }, status: "open", lastAt: t, lastText: text, read: { [m.id]: t } });
     b.set(doc(collection(db, `rooms/${roomRef.id}/messages`)), { charId: m.id, stage: useStore.getState().data.stage, text, image: null, at: t });
-    b.set(doc(collection(db, "notifs")), { to: p.charId, text: `${m.name}이(가) 당신의 글에 말을 걸었어요.`, link: { v: "room", id: roomRef.id }, at: t, read: false });
+    b.set(doc(collection(db, "notifs")), { to: p.charId, kind: "rpNew", text: `${m.name}이(가) 당신의 글에 말을 걸었어요.`, link: { v: "room", id: roomRef.id }, at: t, read: false });
     await b.commit();
     return roomRef.id;
   },
@@ -306,7 +314,7 @@ export const L = {
     b.set(doc(collection(db, `rooms/${roomId}/messages`)), { charId: m.id, stage: useStore.getState().data.stage, text, image: url, at: t });
     b.update(doc(db, "rooms", roomId), { lastAt: t, lastText: text || "(이미지)", [`read.${m.id}`]: t });
     const other = r?.members.find((x) => x !== m.id);
-    if (other) b.set(doc(collection(db, "notifs")), { to: other, text: `${m.name}이(가) 역극에 답했어요.`, link: { v: "room", id: roomId }, at: t, read: false });
+    if (other) b.set(doc(collection(db, "notifs")), { to: other, kind: "rpReply", text: `${m.name}이(가) 역극에 답했어요.`, link: { v: "room", id: roomId }, at: t, read: false });
     await b.commit();
     clearTyping(`room:${roomId}`, m.id);
   },
@@ -378,7 +386,9 @@ export const L = {
     const b = writeBatch(db);
     b.set(doc(collection(db, `adminChats/${charId}/messages`)), { from, text: text.slice(0, 1000), at });
     b.set(doc(db, "adminChats", charId), { charId, charName: c?.name ?? "", lastText: text.slice(0, 80), lastAt: at, ...(admin ? { unreadChar: increment(1), unreadAdmin: 0 } : { unreadAdmin: increment(1), unreadChar: 0 }) }, { merge: true });
-    if (admin) b.set(doc(collection(db, "notifs")), { to: charId, text: `운영자: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`, link: { v: "inbox" }, at, read: false, from: "admin" });
+    if (admin) b.set(doc(collection(db, "notifs")), { to: charId, kind: "adminDm", text: `운영자: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`, link: { v: "inbox" }, at, read: false, from: "admin" });
+    // 멤버가 보낸 문의는 운영자에게 알림(푸시 포함)
+    else b.set(doc(collection(db, "notifs")), { to: "admin", kind: "adminDm", text: `${c?.name ?? "멤버"}: ${text.slice(0, 60)}${text.length > 60 ? "…" : ""}`, link: { v: "inbox", id: charId }, at, read: false });
     await b.commit();
   },
   /** 오너 DM 보내기: 메시지 + 머리글(마지막 글·안 읽음) + 상대 알림을 한 번에 */
@@ -389,9 +399,11 @@ export const L = {
     const b = writeBatch(db);
     b.set(doc(collection(db, `dms/${key}/messages`)), { from: m.id, text: text.slice(0, 1000), at });
     b.set(doc(db, "dms", key), { chars: [m.id, otherCharId].sort(), names: { [m.id]: m.name, [otherCharId]: other?.name ?? "" }, lastText: text.slice(0, 80), lastAt: at, unread: { [otherCharId]: increment(1), [m.id]: 0 } }, { merge: true });
-    b.set(doc(collection(db, "notifs")), { to: otherCharId, text: `${m.name} 오너${m.ownerNick ? `(${m.ownerNick})` : ""}가 DM을 보냈어요.`, link: { v: "dm", id: key }, at, read: false });
+    b.set(doc(collection(db, "notifs")), { to: otherCharId, kind: "ownerDm", text: `${m.name} 오너${m.ownerNick ? `(${m.ownerNick})` : ""}가 DM을 보냈어요.`, link: { v: "dm", id: key }, at, read: false });
     await b.commit();
   },
+  /** 받을 알림 종류 저장 (푸시 서버가 이걸 보고 걸러요) */
+  setNotifyPref: (kind: NotifKind, on: boolean) => { const uid = useStore.getState().session.uid; return uid ? setDoc(doc(fbDb(), "users", uid), { notify: { [kind]: on } }, { merge: true }) : Promise.resolve(); },
   /** 오너 닉네임 바꾸기: 계정 문서 + 내 캐릭터의 복사본 */
   async setNick(nick: string) {
     const db = fbDb(); const s = useStore.getState(); const uid = s.session.uid; if (!uid) throw new Error("로그인이 필요해요.");
@@ -399,7 +411,7 @@ export const L = {
     if (s.session.charId) await updateDoc(doc(db, "characters", s.session.charId), { ownerNick: nick }).catch(() => {});
     useStore.setState((x) => ({ session: { ...x.session, nick } }));
   },
-  adminMessage: (charId: string, text: string) => addDoc(collection(fbDb(), "notifs"), { to: charId, text: `운영자: ${text}`, link: { v: "timeline" }, at: now(), read: false, from: "admin" }).then(() => undefined),
+  adminMessage: (charId: string, text: string) => addDoc(collection(fbDb(), "notifs"), { to: charId, kind: "adminDm", text: `운영자: ${text}`, link: { v: "timeline" }, at: now(), read: false, from: "admin" }).then(() => undefined),
   saveDoc: (id: string, text: string, summary: string) => setDoc(doc(fbDb(), "docs", id), { text, summary, public: true, updatedAt: now() }, { merge: true }),
 
   /* ───── 서버 계산 ───── */

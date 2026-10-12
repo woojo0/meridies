@@ -8,6 +8,7 @@ import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, Transaction, DocumentReference } from "firebase-admin/firestore";
 import { HttpsError, onCall, CallableRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { getMessaging } from "firebase-admin/messaging";
 import {
   DORMS, FORTUNES, GRADES, H, HEARTS, ITEMS, JOBS, JOB_MS, JOB_PER_DAY, JOKBO, KW_COST, KW_MAX_ALLOC, LETTER_MS, LOST_LETTER_RATE,
@@ -62,8 +63,9 @@ function addInv(inv: Record<string, number>, id: string, n: number) {
   if (inv[id] <= 0) delete inv[id];
   return inv;
 }
-function notify(tx: Transaction, to: string, text: string, link?: { v: string; id?: string }) {
-  tx.set(db.collection("notifs").doc(), { to, text, link: link ?? null, at: Date.now(), read: false });
+type NotifKind = "rpNew" | "rpReply" | "mention" | "letterNew" | "letterReply" | "gift" | "adminDm" | "ownerDm" | "system";
+function notify(tx: Transaction, to: string, text: string, link?: { v: string; id?: string }, kind: NotifKind = "system") {
+  tx.set(db.collection("notifs").doc(), { to, kind, text, link: link ?? null, at: Date.now(), read: false });
 }
 function tx$(tx: Transaction, charId: string, text: string, amt: number) {
   tx.set(db.collection(`characters/${charId}/tx`).doc(), { at: Date.now(), text, amt });
@@ -302,7 +304,7 @@ const h_transfer = handler<{ to: string; amt: number; memo?: string }>(async (re
     tx.update(oref, { money: o.money + recv });
     tx$(tx, c.id, `${o.name}에게 송금 (수수료 ${amt - recv})`, -amt);
     tx$(tx, req.data.to, `${c.name}에게서 받음${memo ? ` · ${memo}` : ""}`, recv);
-    notify(tx, req.data.to, `${c.name}이(가) ${recv}그로셴을 보냈어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: req.data.to });
+    notify(tx, req.data.to, `${c.name}이(가) ${recv}그로셴을 보냈어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: req.data.to }, "gift");
     return { recv };
   }),
 );
@@ -348,7 +350,7 @@ const h_giftItem = handler<{ itemId: string; to: string; memo?: string }>(async 
     tx.update(ref, { inv: addInv({ ...c.inv }, req.data.itemId, -1) });
     tx.update(oref, { inv: addInv({ ...o.inv }, req.data.itemId, 1) });
     const memo = (req.data.memo ?? "").slice(0, 80);
-    notify(tx, req.data.to, `${c.name}이(가) ${item.name}을(를) 선물했어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: req.data.to });
+    notify(tx, req.data.to, `${c.name}이(가) ${item.name}을(를) 선물했어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: req.data.to }, "gift");
     return { ok: true };
   }),
 );
@@ -402,7 +404,7 @@ const h_letterSend = handler<{ text: string }>(async (req) => {
     const tref = db.collection("threads").doc();
     const now = Date.now();
     tx.set(tref, { a: c.id, b: o.id, alias: { [c.id]: alias(), [o.id]: alias() }, createdAt: now, lastAt: now });
-    tx.set(tref.collection("letters").doc(), { from: c.id, text, sentAt: now, deliverAt: now + LETTER_MS, read: false });
+    tx.set(tref.collection("letters").doc(), { from: c.id, text, sentAt: now, deliverAt: now + LETTER_MS, read: false, notified: false, kind: "letterNew" });
     return { result: "sent" };
   });
 });
@@ -418,7 +420,7 @@ const h_letterReply = handler<{ threadId: string; text: string }>(async (req) =>
     if (!(c.inv.pigeon > 0)) throw bad("마법 비둘기가 필요해요.");
     tx.update(ref, { inv: addInv({ ...c.inv }, "pigeon", -1) });
     const now = Date.now();
-    tx.set(tref.collection("letters").doc(), { from: c.id, text, sentAt: now, deliverAt: now + LETTER_MS, read: false });
+    tx.set(tref.collection("letters").doc(), { from: c.id, text, sentAt: now, deliverAt: now + LETTER_MS, read: false, notified: false, kind: "letterReply" });
     tx.update(tref, { lastAt: now });
     return { result: "sent" };
   });
@@ -566,24 +568,59 @@ const LINK_PATH = (link?: { v?: string; id?: string }) => {
     default: return "/timeline";
   }
 };
+type UserDoc = { admin?: boolean; notify?: Partial<Record<NotifKind, boolean>> };
+/** 이 계정이 이 종류의 알림을 받는지. 운영자는 운영자 DM만, 멤버는 알림 설정을 따라요. */
+const wants = (u: UserDoc | undefined, kind: NotifKind) => (u?.admin ? kind === "adminDm" : u?.notify?.[kind] !== false);
+
+async function sendPush(uids: string[], kind: NotifKind, text: string, link: string, tag: string) {
+  for (const uid of uids) {
+    const u = (await db.doc(`users/${uid}`).get()).data() as UserDoc | undefined;
+    if (!wants(u, kind)) continue;
+    const devs = await db.collection(`users/${uid}/devices`).get();
+    const tokens = devs.docs.map((d) => d.id);
+    if (!tokens.length) continue;
+    const res = await getMessaging().sendEachForMulticast({
+      tokens,
+      notification: { title: "메리디에스", body: text.slice(0, 200) },
+      data: { title: "메리디에스", body: text.slice(0, 200), link },
+      webpush: { notification: { icon: "/icon-192.png", badge: "/icon-192.png", tag }, fcmOptions: { link }, headers: { Urgency: "high" } },
+    });
+    const dead = res.responses.map((r, i) => (!r.success && /registration-token-not-registered|invalid-argument/.test(r.error?.code ?? "") ? tokens[i] : null)).filter((t): t is string => !!t);
+    if (dead.length) { const b = db.batch(); for (const t of dead) b.delete(db.doc(`users/${uid}/devices/${t}`)); await b.commit(); }
+  }
+}
+
 export const pushOnNotif = onDocumentCreated({ document: "notifs/{id}", region: REGION, memory: "256MiB" }, async (ev) => {
-  const n = ev.data?.data() as { to?: string; text?: string; link?: { v?: string; id?: string } } | undefined;
+  const n = ev.data?.data() as { to?: string; kind?: NotifKind; text?: string; link?: { v?: string; id?: string } } | undefined;
   if (!n?.to || !n.text) return;
+  const kind: NotifKind = n.kind ?? "system";
+  const link = LINK_PATH(n.link);
+  const tag = `meridies-${n.link?.v ?? "n"}-${n.link?.id ?? ""}`;
+  if (n.to === "admin") {
+    const admins = await db.collection("users").where("admin", "==", true).get();
+    await sendPush(admins.docs.map((d) => d.id), kind, n.text, link, tag);
+    return;
+  }
   const c = (await db.doc(`characters/${n.to}`).get()).data() as { ownerUid?: string } | undefined;
   if (!c?.ownerUid) return;
-  const devs = await db.collection(`users/${c.ownerUid}/devices`).get();
-  const tokens = devs.docs.map((d) => d.id);
-  if (!tokens.length) return;
-  const link = LINK_PATH(n.link);
-  const res = await getMessaging().sendEachForMulticast({
-    tokens,
-    notification: { title: "메리디에스", body: n.text.slice(0, 200) },
-    data: { title: "메리디에스", body: n.text.slice(0, 200), link },
-    webpush: { notification: { icon: "/icon-192.png", badge: "/icon-192.png", tag: `meridies-${n.link?.v ?? "n"}-${n.link?.id ?? ""}` }, fcmOptions: { link }, headers: { Urgency: "high" } },
-  });
-  // 만료·해지된 토큰은 치워요.
-  const dead = res.responses.map((r, i) => (!r.success && /registration-token-not-registered|invalid-argument/.test(r.error?.code ?? "") ? tokens[i] : null)).filter((t): t is string => !!t);
-  if (dead.length) { const b = db.batch(); for (const t of dead) b.delete(db.doc(`users/${c.ownerUid}/devices/${t}`)); await b.commit(); }
+  await sendPush([c.ownerUid], kind, n.text, link, tag);
+});
+
+/** 익명의 편지는 보낸 뒤 시간이 지나야 도착해요. 5분마다 도착한 편지를 찾아 받는 쪽에 알림을 만들어요. */
+export const letterDelivery = onSchedule({ schedule: "every 5 minutes", region: REGION, memory: "256MiB" }, async () => {
+  const due = await db.collectionGroup("letters").where("notified", "==", false).where("deliverAt", "<=", Date.now()).limit(200).get();
+  if (due.empty) return;
+  const b = db.batch();
+  for (const d of due.docs) {
+    const l = d.data() as { from: string; kind?: NotifKind };
+    const tref = d.ref.parent.parent; if (!tref) continue;
+    const t = (await tref.get()).data() as { a: string; b: string } | undefined; if (!t) continue;
+    const to = l.from === t.a ? t.b : t.a;
+    const reply = l.kind === "letterReply";
+    b.set(db.collection("notifs").doc(), { to, kind: reply ? "letterReply" : "letterNew", text: reply ? "익명의 편지인에게 답장이 도착했어요." : "익명의 편지가 도착했어요.", link: { v: "pen" }, at: Date.now(), read: false });
+    b.update(d.ref, { notified: true });
+  }
+  await b.commit();
 });
 
 /* ───────── 내보내기: 개별 함수 + 단일 진입점 api ───────── */

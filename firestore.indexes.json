@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "letters",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "notified", "order": "ASCENDING" },
+        { "fieldPath": "deliverAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [

@@ -130,6 +130,7 @@ export function CharDrawer() {
                     markNotif(x.id); closeDrawer();
                     if (x.link?.v === "inbox") router.push("/inbox");
                     else if (x.link?.v === "dm") router.push(`/dm/${x.link.id}`);
+                    else if (x.link?.v === "pen") { useOverlay.getState().openDrawer("pen"); return; }
                     else if (x.link?.v === "room") router.push(`/room/${x.link.id}`);
                     else if (x.link?.v === "profile") router.push(`/profile/${x.link.id}`);
                     else router.push("/timeline");

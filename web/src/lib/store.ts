@@ -9,13 +9,13 @@ import { LIVE } from "./firebase";
 import { SUBJECTS1, jobsFor, kwIdFor, materializeStage1, needsStage1Alloc, scoresFor, subjectName, subjectsFor } from "./curriculum";
 import { gIdx, pad, rnd, uid, ymd } from "./format";
 import { DATA_VERSION, scoresFrom, seed } from "./seed";
-import type { CatId, Character, Data, DormId, Item, Profile, Stage, SubjectId, Tx } from "./types";
+import type { CatId, Character, Data, DormId, Item, Notif, NotifKind, Profile, Stage, SubjectId, Tx } from "./types";
 
 /* 실제 서버 모드 구현(live.ts)은 순환 참조를 피하려고 호출 시점에 가져와요. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const live = () => (require("./live") as typeof import("./live"));
 
-export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, number]; /** 성적·재화 조정에서 최근 고른 캐릭터 id (최신순, 최대 5) */ recentAdjust: string[] }
+export interface UIPrefs { shopCat: string; calSel: string; calMonth: [number, number]; /** 성적·재화 조정에서 최근 고른 캐릭터 id (최신순, 최대 5) */ recentAdjust: string[]; /** 받을 알림 종류. 없거나 true면 켜짐 */ notify: Partial<Record<NotifKind, boolean>> }
 export interface StudyResult { subject: string; before: number; after: number; gain: number; base: number; jokbo: boolean; flavor: string; left: number }
 export interface JobResult { jobId: string; ok: boolean; amt: number; rate: number; grade: number }
 export interface Session { charId: string | null; admin: boolean; uid: string | null; status: "pending" | "member" | "suspended" | null; email: string | null; /** 오너 닉네임 */ nick: string | null }
@@ -85,6 +85,9 @@ interface State {
 
   setShopCat: (c: string) => void;
   pushRecentAdjust: (charId: string) => void;
+  setNotifyPref: (kind: NotifKind, on: boolean) => void;
+  /** 운영자에게 온 알림(멤버 문의) */
+  adminNotifs: Notif[];
   buy: (itemId: string) => Promise<Item | null>;
   gift: (itemId: string, to: string, memo: string) => Promise<void>;
   openCookie: () => Promise<string>;
@@ -141,7 +144,7 @@ interface State {
 }
 
 const emptySession = (): Session => ({ charId: null, admin: false, uid: null, status: null, email: null, nick: null });
-const todayUI = (): UIPrefs => { const d = new Date(); return { shopCat: "전체", calSel: ymd(d), calMonth: [d.getFullYear(), d.getMonth()], recentAdjust: [] }; };
+const todayUI = (): UIPrefs => { const d = new Date(); return { shopCat: "전체", calSel: ymd(d), calMonth: [d.getFullYear(), d.getMonth()], recentAdjust: [], notify: {} }; };
 
 function addInv(c: Character, id: string, n: number) { c.inv[id] = (c.inv[id] || 0) + n; if (c.inv[id] <= 0) delete c.inv[id]; }
 export function jobLeft(c: Character, now: number) { const day = ymd(new Date(now)); const jd = c.jobDay?.day === day ? c.jobDay : { n: 0, bonus: 0 }; return JOB_PER_DAY + jd.bonus - jd.n; }
@@ -156,7 +159,7 @@ export function prof(c: Character, stage: number): { p: Profile; stage: Stage } 
 export const useStore = create<State>()(
   persist(
     immer((set, get) => {
-      const pushNotif = (d: Data, to: string, text: string, link?: { v: string; id?: string }) => { d.notifs.unshift({ id: uid(), to, text, link, at: Date.now() + get().shift, read: false }); };
+      const pushNotif = (d: Data, to: string, text: string, link?: { v: string; id?: string }, kind: NotifKind = "system") => { d.notifs.unshift({ id: uid(), to, kind, text, link, at: Date.now() + get().shift, read: false }); };
       const mine = (d: Data) => d.chars.find((c) => c.id === get().session.charId);
       const L = () => live().L;
 
@@ -175,6 +178,7 @@ export const useStore = create<State>()(
         docTexts: {},
         adminChats: {},
         dms: {},
+        adminNotifs: [],
         postLimit: 20,
         postsHasMore: true,
 
@@ -191,7 +195,7 @@ export const useStore = create<State>()(
         addPost: async (text, images) => { if (LIVE) return L().addPost(text, images); set((s) => {
           const m = mine(s.data); if (!m) return;
           s.data.posts.push({ id: uid(), charId: m.id, stage: s.data.stage, text, images, at: get().now(), likes: [] });
-          (text.match(/@(\S+)/g) || []).forEach((x) => { const c = s.data.chars.find((c) => c.name.replace(/\s/g, "") === x.slice(1)); if (c && c.id !== m.id) pushNotif(s.data, c.id, `${m.name}이(가) 타임라인에서 당신을 언급했어요.`, { v: "timeline" }); });
+          (text.match(/@(\S+)/g) || []).forEach((x) => { const c = s.data.chars.find((c) => c.name.replace(/\s/g, "") === x.slice(1)); if (c && c.id !== m.id) pushNotif(s.data, c.id, `${m.name}이(가) 타임라인에서 당신을 언급했어요.`, { v: "timeline" }, "mention"); });
         }); },
         editPost: async (id, text) => { if (LIVE) return L().editPost(id, text); set((s) => { const p = s.data.posts.find((p) => p.id === id); if (p) { p.text = text; p.edited = true; } }); },
         deletePost: async (id) => { if (LIVE) return L().deletePost(id); set((s) => { s.data.posts = s.data.posts.filter((p) => p.id !== id); }); },
@@ -206,7 +210,7 @@ export const useStore = create<State>()(
             const m = mine(s.data); const p = s.data.posts.find((p) => p.id === postId); if (!m || !p) return;
             const now = get().now();
             s.data.rooms.push({ id, members: [p.charId, m.id], source: { postId: p.id, charId: p.charId, stage: p.stage, text: p.text, images: [...p.images], at: p.at }, messages: [{ id: uid(), charId: m.id, stage: s.data.stage, text, at: now }], status: "open", lastAt: now, read: { [m.id]: now } });
-            pushNotif(s.data, p.charId, `${m.name}이(가) 당신의 글에 말을 걸었어요.`, { v: "room", id });
+            pushNotif(s.data, p.charId, `${m.name}이(가) 당신의 글에 말을 걸었어요.`, { v: "room", id }, "rpNew");
           });
           return id;
         },
@@ -217,7 +221,7 @@ export const useStore = create<State>()(
           r.messages.push({ id: uid(), charId: m.id, stage: s.data.stage, text, image, at: now });
           r.lastAt = now; r.read[m.id] = now;
           const o = r.members.find((x) => x !== m.id)!;
-          pushNotif(s.data, o, `${m.name}이(가) 역극에 답했어요.`, { v: "room", id: r.id });
+          pushNotif(s.data, o, `${m.name}이(가) 역극에 답했어요.`, { v: "room", id: r.id }, "rpReply");
         }); },
         rpEdit: async (roomId, msgId, text) => { if (LIVE) return L().rpEdit(roomId, msgId, text); set((s) => { const x = s.data.rooms.find((r) => r.id === roomId)?.messages.find((x) => x.id === msgId); if (x) { x.text = text; x.edited = true; } }); },
         rpDone: async (roomId) => { if (LIVE) return L().rpDone(roomId); set((s) => { const r = s.data.rooms.find((r) => r.id === roomId); if (r) r.status = "done"; }); },
@@ -237,6 +241,7 @@ export const useStore = create<State>()(
         addEvent: async (e) => { if (LIVE) { await L().addEvent(e); set((s) => { s.ui.calSel = e.date; }); return; } set((s) => { s.data.events.push({ id: uid(), ...e }); s.ui.calSel = e.date; }); },
 
         setShopCat: (c) => set((s) => { s.ui.shopCat = c; }),
+        setNotifyPref: (kind, on) => { set((s) => { s.ui.notify = { ...(s.ui.notify ?? {}), [kind]: on }; }); if (LIVE) void L().setNotifyPref(kind, on); },
         pushRecentAdjust: (charId) => set((s) => { s.ui.recentAdjust = [charId, ...(s.ui.recentAdjust ?? []).filter((x) => x !== charId)].slice(0, 5); }),
         buy: async (itemId) => {
           if (LIVE) return L().buy(itemId);
@@ -259,7 +264,7 @@ export const useStore = create<State>()(
           const m = mine(s.data); const o = s.data.chars.find((c) => c.id === to); const it = s.data.items.find((i) => i.id === itemId);
           if (!m || !o || !it || !(m.inv[itemId] > 0)) return;
           addInv(m, itemId, -1); addInv(o, itemId, 1);
-          pushNotif(s.data, to, `${m.name}이(가) ${it.name}을(를) 선물했어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: to });
+          pushNotif(s.data, to, `${m.name}이(가) ${it.name}을(를) 선물했어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: to }, "gift");
         }); },
         openCookie: async () => { if (LIVE) return L().openCookie(); set((s) => { const m = mine(s.data); if (m) addInv(m, "cookie", -1); }); return FORTUNES[rnd(0, FORTUNES.length - 1)]; },
         listenEgg: async () => (LIVE ? L().listenEgg() : HEARTS[rnd(0, HEARTS.length - 1)]),
@@ -348,7 +353,7 @@ export const useStore = create<State>()(
             m.money -= amt; o.money += recv;
             m.tx.unshift({ at: now, text: `${o.name}에게 송금 (수수료 ${amt - recv})`, amt: -amt });
             o.tx.unshift({ at: now, text: `${m.name}에게서 받음${memo ? ` · ${memo}` : ""}`, amt: recv });
-            pushNotif(s.data, to, `${m.name}이(가) ${recv}그로셴을 보냈어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: to });
+            pushNotif(s.data, to, `${m.name}이(가) ${recv}그로셴을 보냈어요.${memo ? ` “${memo}”` : ""}`, { v: "profile", id: to }, "gift");
           });
           return err;
         },
@@ -440,7 +445,7 @@ export const useStore = create<State>()(
             const m = mine(s.data); if (!m) return; const now = get().now(); const key = dmKey(m.id, otherCharId);
             const t = (s.dms[key] = s.dms[key] ?? { key, chars: [m.id, otherCharId].sort(), lastText: "", lastAt: 0, unread: {}, messages: [] });
             t.messages.push({ id: uid(), from: m.id, text, at: now }); t.lastText = text.slice(0, 80); t.lastAt = now; t.unread[otherCharId] = (t.unread[otherCharId] ?? 0) + 1; t.unread[m.id] = 0;
-            pushNotif(s.data, otherCharId, `${m.name} 오너${m.ownerNick ? `(${m.ownerNick})` : ""}가 DM을 보냈어요.`, { v: "dm", id: key });
+            pushNotif(s.data, otherCharId, `${m.name} 오너${m.ownerNick ? `(${m.ownerNick})` : ""}가 DM을 보냈어요.`, { v: "dm", id: key }, "ownerDm");
           });
         },
         setNick: async (nick) => {

@@ -177,8 +177,8 @@ service cloud.firestore {
 
     // ───────── 알림 ─────────
     match /notifs/{notifId} {
-      allow read: if isMember() && resource.data.to == myCharId();
-      allow update: if isMember() && resource.data.to == myCharId() && unchanged(['to', 'text', 'link', 'at']);
+      allow read: if isAdmin() || (isMember() && resource.data.to == myCharId());
+      allow update: if isAdmin() || (isMember() && resource.data.to == myCharId() && unchanged(['to', 'text', 'link', 'at']));
       // 멤버는 다른 캐릭터에게 보내는 알림(말 걸기·답장·선물 등)만 만들 수 있어요.
       allow create: if isAdmin() || (isMember() && request.resource.data.to != myCharId() && request.resource.data.text is string && request.resource.data.text.size() <= 300);
       // 내 알림은 지울 수 있어요.

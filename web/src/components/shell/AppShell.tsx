@@ -7,6 +7,7 @@ import { LIVE } from "@/lib/firebase";
 import { useHydrated, useMe, useNow } from "@/lib/hooks";
 import { toast, useOverlay } from "@/lib/overlay";
 import { useStore } from "@/lib/store";
+import { notifyOn } from "@/lib/notify";
 import { cx } from "@/lib/format";
 import { Avatar, BrandMark } from "../ui/identity";
 import { LightboxRoot, SheetRoot, ToastRoot } from "../ui/overlays";
@@ -19,7 +20,7 @@ const TITLES: Record<string, string> = {
   "/timeline": "타임라인", "/dorm": "기숙사", "/calendar": "달력", "/shop": "상점", "/more": "더보기", "/characters": "캐릭터",
   "/more/world": "공개 세계관", "/more/handbook": "루체른 생활 편람", "/more/rules": "규칙", "/more/characters": "캐릭터 목록", "/more/admin": "운영자 도구",
   "/join": "캐릭터 등록",
-  "/inbox": "운영자 문의", "/dm": "오너 DM",
+  "/inbox": "운영자 문의", "/dm": "오너 DM", "/more/notify": "알림 설정",
 };
 const titleFor = (pathname: string) => TITLES[pathname] ?? (/^\/profile\/[^/]+\/edit$/.test(pathname) ? "프로필 수정" : pathname.startsWith("/profile/") ? "프로필" : pathname.startsWith("/room/") ? "역극" : pathname.startsWith("/dm/") ? "오너 DM" : "");
 
@@ -58,20 +59,26 @@ function chime() {
 /** 새 알림(역극 답장 등)이 오면 토스트 + 알림음. */
 function useNotificationAlerts() {
   const me = useMe();
+  const admin = useStore((s) => s.session.admin);
   const notifs = useStore((s) => s.data.notifs);
+  const adminNotifs = useStore((s) => s.adminNotifs);
+  const prefs = useStore((s) => s.ui.notify);
   const seen = useRef<Set<string> | null>(null);
   const pathname = usePathname();
   useEffect(() => {
-    if (!me) return;
-    const mine = notifs.filter((n) => n.to === me.id);
+    // 운영자는 멤버 문의(운영자 DM)만, 멤버는 알림 설정에서 켜 둔 종류만 소리·팝업
+    const mine = admin ? adminNotifs : me ? notifs.filter((n) => n.to === me.id) : [];
+    if (!admin && !me) return;
     if (!seen.current) { seen.current = new Set(mine.map((n) => n.id)); return; }
     const fresh = mine.filter((n) => !n.read && !seen.current!.has(n.id));
     fresh.forEach((n) => seen.current!.add(n.id));
-    if (!fresh.length) return;
-    const n = fresh[0];
+    const show = admin ? fresh : fresh.filter((n) => notifyOn(prefs, n.kind));
+    if (!show.length) return;
+    const n = show[0];
     const inRoom = n.link?.v === "room" && pathname === `/room/${n.link.id}`;
-    if (!inRoom) { toast(fresh.length > 1 ? `${n.text} 외 ${fresh.length - 1}건` : n.text); chime(); }
-  }, [notifs, me, pathname]);
+    const inInbox = n.link?.v === "inbox" && pathname === "/inbox";
+    if (!inRoom && !inInbox) { toast(show.length > 1 ? `${n.text} 외 ${show.length - 1}건` : n.text); chime(); }
+  }, [notifs, adminNotifs, me, admin, prefs, pathname]);
 }
 
 export function Splash() {

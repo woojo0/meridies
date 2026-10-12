@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, BookOpen, ChevronRight, KeyRound, Lock, LogOut, Mail, MessageSquare, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
+import { AtSign, BellRing, BookOpen, ChevronRight, KeyRound, Lock, LogOut, Mail, MessageSquare, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { H } from "@/lib/constants";
@@ -13,7 +13,6 @@ import { Avatar } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
 import { Button, Chip, ChipRow, Field, Input, Note, RowSub, RowTitle, SectionHead, rowCls } from "../ui/primitives";
 import { useState } from "react";
-import { PushCard } from "./PushCard";
 
 function MenuRow({ href, icon, title, sub, onClick }: { href?: string; icon: React.ReactNode; title: string; sub: string; onClick?: () => void }) {
   const inner = (
@@ -70,10 +69,9 @@ export function MoreView() {
         {!LIVE && <MenuRow href="/join" icon={<Plus size={ic} strokeWidth={1.6} />} title="캐릭터 등록" sub="성적 2,000점 분배 · 데모에서는 여러 명 가능" />}
       </div>
 
-      {LIVE && (<><SectionHead title="푸시 알림" aside="기기마다 추가" /><PushCard /></>)}
-
       <SectionHead title="설정" />
       <div className="card-flat">
+        <MenuRow href="/more/notify" icon={<BellRing size={ic} strokeWidth={1.6} />} title="알림 설정" sub={admin ? "운영자 DM 알림 · 푸시 기기" : "받을 알림 고르기 · 푸시 기기 추가"} />
         <div className="px-4 py-4">
           <span className="mb-2 block text-[13px] font-semibold text-muted">화면</span>
           <ChipRow>

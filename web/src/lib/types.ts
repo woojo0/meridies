@@ -154,9 +154,14 @@ export interface Job {
   flavorL: string;
 }
 
+export type NotifKind = "rpNew" | "rpReply" | "mention" | "letterNew" | "letterReply" | "gift" | "adminDm" | "ownerDm" | "system";
+
 export interface Notif {
   id: string;
+  /** 캐릭터 id, 또는 운영자에게 가는 알림이면 "admin" */
   to: string;
+  /** 종류. 없으면 운영 알림으로 취급 */
+  kind?: NotifKind;
   text: string;
   link?: { v: string; id?: string };
   at: number;
