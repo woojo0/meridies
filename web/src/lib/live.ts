@@ -433,6 +433,8 @@ export const L = {
   ration: () => call<undefined, { n: number }>("ration").then((r) => r.n),
   studyStart: (subject: string, useJokbo: boolean) => call("studyStart", { subject, useJokbo }).then(() => null as string | null),
   studyFinish: () => call<undefined, StudyResult>("studyFinish"),
+  studyCancel: () => call("studyCancel").then(() => undefined),
+  jobCancel: () => call("jobCancel").then(() => undefined),
   jobStart: (jobId: string) => call("jobStart", { jobId }).then(() => null as string | null),
   jobFinish: () => call<undefined, JobResult>("jobFinish"),
   transfer: (to: string, amt: number, memo: string) => call("transfer", { to, amt, memo }).then(() => null as string | null),

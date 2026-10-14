@@ -99,6 +99,8 @@ interface State {
   ration: () => Promise<number>;
   studyStart: (subjectId: string, useJokbo: boolean) => Promise<string | null>;
   studyFinish: () => Promise<StudyResult | null>;
+  studyCancel: () => Promise<void>;
+  jobCancel: () => Promise<void>;
   jobStart: (jobId: string) => Promise<string | null>;
   jobFinish: () => Promise<JobResult | null>;
   transfer: (to: string, amt: number, memo: string) => Promise<string | null>;
@@ -314,6 +316,24 @@ export const useStore = create<State>()(
             out = { subject: sub.id, before, after: table[sub.id], gain, base, jokbo: sj.jokbo, flavor, left: STUDY_PER_DAY - (m.study?.n ?? 0) };
           });
           return out;
+        },
+        studyCancel: async () => {
+          if (LIVE) return L().studyCancel();
+          set((s) => {
+            const m = mine(s.data); const sj = m?.studyJob; if (!m || !sj) return;
+            if (sj.subject === "kw" || sj.subject === "kw2") addInv(m, "ration", KW_COST);
+            if (sj.jokbo) addInv(m, "jokbo", 1);
+            if (m.study?.day === ymd(new Date(get().now()))) m.study.n = Math.max(0, m.study.n - 1);
+            m.studyJob = null;
+          });
+        },
+        jobCancel: async () => {
+          if (LIVE) return L().jobCancel();
+          set((s) => {
+            const m = mine(s.data); if (!m?.job) return;
+            if (m.jobDay?.day === ymd(new Date(get().now()))) m.jobDay.n = Math.max(0, m.jobDay.n - 1);
+            m.job = null;
+          });
         },
         jobStart: async (jobId) => {
           if (LIVE) return L().jobStart(jobId);

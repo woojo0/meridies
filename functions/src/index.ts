@@ -287,6 +287,36 @@ const h_jobFinish = handler(async (req) =>
   }),
 );
 
+/* ───────── 공부·아르바이트 그만두기: 결과 없이 끝내고, 쓴 횟수·솔리스·족보는 돌려줘요 ───────── */
+const h_studyCancel = handler(async (req) =>
+  db.runTransaction(async (tx) => {
+    const { ref, c } = await myChar(tx, req);
+    const sj = c.studyJob;
+    if (!sj) throw bad("공부 중이 아니에요.");
+    if (Date.now() - sj.start >= STUDY_MS) throw bad("이미 끝난 공부예요. 결과를 확인해 주세요.");
+    const inv = { ...c.inv };
+    if (["kw", "kw2"].includes(sj.subject as string)) addInv(inv, "ration", KW_COST);
+    if (sj.jokbo) addInv(inv, "jokbo", 1);
+    const day = kstDay();
+    const study = c.study?.day === day ? { day, n: Math.max(0, c.study.n - 1) } : c.study ?? null;
+    tx.update(ref, { inv, study, studyJob: null });
+    return { ok: true };
+  }),
+);
+const h_jobCancel = handler(async (req) =>
+  db.runTransaction(async (tx) => {
+    const { ref, c } = await myChar(tx, req);
+    if (!c.job) throw bad("아르바이트 중이 아니에요.");
+    if (Date.now() - c.job.start >= JOB_MS) throw bad("이미 끝난 아르바이트예요. 보상을 받아 주세요.");
+    const day = kstDay();
+    const jobDay = c.jobDay?.day === day ? { ...c.jobDay, n: Math.max(0, c.jobDay.n - 1) } : c.jobDay ?? null;
+    tx.update(ref, { jobDay, job: null });
+    return { ok: true };
+  }),
+);
+HANDLERS["studyCancel"] = h_studyCancel as Handler<never>;
+HANDLERS["jobCancel"] = h_jobCancel as Handler<never>;
+
 /* ───────── 송금 ───────── */
 const h_transfer = handler<{ to: string; amt: number; memo?: string }>(async (req) =>
   db.runTransaction(async (tx) => {

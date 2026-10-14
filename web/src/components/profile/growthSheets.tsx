@@ -70,7 +70,10 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
               );
             }}>결과 보기</Button>
           ) : (
-            LIVE ? <Button variant="ghost" onClick={closeSheet}>닫기</Button> : <Button variant="ghost" onClick={() => { shiftTime(1); toast("시간을 1시간 앞으로 감았어요."); }}>시간 +1시간 (데모)</Button>
+            <>
+              <Button variant="ghost" onClick={() => openSheet(<CancelConfirm what="공부" detail={`${sub.name} 공부를 그만두면 결과(점수)는 없어요. 쓴 공부 횟수${sj.subject === "kw" || sj.subject === "kw2" ? `와 배급 솔리스 ${KW_COST}병` : ""}${sj.jokbo ? "와 족보" : ""}는 돌려받아요.`} onBack={() => openStudySheet()} />)}>그만두기</Button>
+              {LIVE ? <Button variant="ghost" onClick={closeSheet}>닫기</Button> : <Button variant="ghost" onClick={() => { shiftTime(1); toast("시간을 1시간 앞으로 감았어요."); }}>시간 +1시간 (데모)</Button>}
+            </>
           )}
         </SheetActions>
       </>
@@ -150,7 +153,10 @@ export function JobSheet() {
               );
             }}>완료하고 보상 받기</Button>
           ) : (
-            LIVE ? <Button variant="ghost" onClick={closeSheet}>닫기</Button> : <Button variant="ghost" onClick={() => { shiftTime(2); toast("시간을 2시간 앞으로 감았어요."); }}>시간 +2시간 (데모)</Button>
+            <>
+              <Button variant="ghost" onClick={() => openSheet(<CancelConfirm what="아르바이트" detail={`${j.name}을(를) 그만두면 보상은 없어요. 쓴 아르바이트 횟수는 돌려받아요.`} onBack={openJobSheet} />)}>그만두기</Button>
+              {LIVE ? <Button variant="ghost" onClick={closeSheet}>닫기</Button> : <Button variant="ghost" onClick={() => { shiftTime(2); toast("시간을 2시간 앞으로 감았어요."); }}>시간 +2시간 (데모)</Button>}
+            </>
           )}
         </SheetActions>
       </>
@@ -181,6 +187,28 @@ export function JobSheet() {
           );
         })}
       </div>
+    </>
+  );
+}
+
+/** 공부·아르바이트 그만두기 확인 */
+function CancelConfirm({ what, detail, onBack }: { what: "공부" | "아르바이트"; detail: string; onBack: () => void }) {
+  const closeSheet = useOverlay((s) => s.closeSheet);
+  const studyCancel = useStore((s) => s.studyCancel);
+  const jobCancel = useStore((s) => s.jobCancel);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <SheetTitle sub={detail}>정말 {what}를 그만둘까요?</SheetTitle>
+      <p className="mb-3 rounded-2xl bg-crit/10 px-4 py-3 text-[13.5px] leading-relaxed text-crit">지금까지 지난 시간은 사라지고 되돌릴 수 없어요.</p>
+      <SheetActions>
+        <Button variant="ghost" disabled={busy} onClick={onBack}>계속하기</Button>
+        <Button disabled={busy} className="bg-crit text-white" onClick={async () => {
+          setBusy(true);
+          try { await (what === "공부" ? studyCancel() : jobCancel()); closeSheet(); toast(`${what}를 그만뒀어요.`); }
+          catch (e) { toast((e as Error).message); setBusy(false); }
+        }}>{busy ? "그만두는 중…" : "그만두기"}</Button>
+      </SheetActions>
     </>
   );
 }
