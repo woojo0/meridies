@@ -33,17 +33,18 @@ export const fbStorage = (): FirebaseStorage => getStorage(fbApp());
 export const fbFns = (): Functions => getFunctions(fbApp(), REGION);
 
 /** Cloud Function 호출. 에러 메시지는 사용자에게 그대로 보여 줄 수 있게 정리해요. */
-let apiMissing = false;
+/** api 호출이 실패하면 잠깐(5분) 개별 함수로 우회했다가 다시 api를 시도해요. */
+let apiMissingUntil = 0;
 export async function call<TIn, TOut>(name: string, data?: TIn): Promise<TOut> {
   try {
-    if (!apiMissing) {
+    if (Date.now() >= apiMissingUntil) {
       try {
         const res = await httpsCallable<{ action: string; data?: TIn }, TOut>(fbFns(), "api")({ action: name, data });
         return res.data;
       } catch (e) {
         const code = ((e as { code?: string }).code ?? "").replace(/^functions\//, "");
         // 아직 api 함수가 배포되지 않았으면 개별 함수로 돌아가요.
-        if (code === "not-found" || code === "internal") apiMissing = true; else throw e;
+        if (code === "not-found" || code === "internal") apiMissingUntil = Date.now() + 5 * 60 * 1000; else throw e;
       }
     }
     const res = await httpsCallable<TIn, TOut>(fbFns(), name)(data as TIn);

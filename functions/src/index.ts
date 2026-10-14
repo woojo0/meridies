@@ -665,7 +665,10 @@ export const closeSemester = fn(h_closeSemester);
  * 단일 진입점. 모든 요청이 같은 인스턴스를 쓰므로 콜드 스타트가 줄어요.
  * { action: "ration", data: {...} }
  */
-export const api = onCall<{ action: string; data?: unknown }>({ region: REGION, memory: "256MiB", concurrency: 20 }, async (req) => {
+// 항상 1개를 켜 둬서(minInstances) 배급·공부·아르바이트가 깨우는 시간 없이 바로 응답해요.
+// 대기 요금을 줄이려고 CPU를 낮춘 사양(gcf_gen1 ≈ 0.17 vCPU)으로 두고, 그 사양은 동시 처리 1건이라 concurrency도 1이에요.
+// invoker: "public"은 브라우저에서 호출할 수 있게 하는 권한이에요. 로그인·멤버 확인은 각 처리기 안에서 해요.
+export const api = onCall<{ action: string; data?: unknown }>({ region: REGION, memory: "256MiB", cpu: "gcf_gen1", concurrency: 1, minInstances: 1, invoker: "public" }, async (req) => {
   const h = HANDLERS[req.data?.action ?? ""];
   if (!h) throw new HttpsError("not-found", "알 수 없는 요청이에요.");
   return (h as Handler<unknown>)({ ...req, data: req.data.data } as CallableRequest<unknown>);
