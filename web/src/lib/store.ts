@@ -6,6 +6,7 @@ import {
   SUBJECTS, TRANSFER_FEE, DORMS, GRADES, H,
 } from "./constants";
 import { LIVE } from "./firebase";
+import type { AltAccount } from "./accounts";
 import { SUBJECTS1, jobsFor, kwIdFor, materializeStage1, needsStage1Alloc, scoresFor, subjectName, subjectsFor } from "./curriculum";
 import { gIdx, pad, rnd, uid, ymd } from "./format";
 import { DATA_VERSION, scoresFrom, seed } from "./seed";
@@ -88,6 +89,10 @@ interface State {
   setNotifyPref: (kind: NotifKind, on: boolean) => void;
   /** 운영자에게 온 알림(멤버 문의) */
   adminNotifs: Notif[];
+  /** 함께 로그인해 둔 두 번째 계정 (운영자만) */
+  alt: AltAccount | null;
+  /** 두 번째 계정의 알림 */
+  altNotifs: Notif[];
   buy: (itemId: string) => Promise<Item | null>;
   gift: (itemId: string, to: string, memo: string) => Promise<void>;
   openCookie: () => Promise<string>;
@@ -164,6 +169,15 @@ export const useStore = create<State>()(
       const pushNotif = (d: Data, to: string, text: string, link?: { v: string; id?: string }, kind: NotifKind = "system") => { d.notifs.unshift({ id: uid(), to, kind, text, link, at: Date.now() + get().shift, read: false }); };
       const mine = (d: Data) => d.chars.find((c) => c.id === get().session.charId);
       const L = () => live().L;
+      /** 서버 응답을 기다리지 않고 내 캐릭터를 먼저 바꿔 두고, 실패하면 되돌려요. 서버 값은 곧 구독으로 덮어써져요. */
+      const optimistic = async <T,>(apply: (m: Character) => void, run: () => Promise<T>): Promise<T> => {
+        const id = get().session.charId;
+        const prev = get().data.chars.find((c) => c.id === id);
+        const before = prev ? (JSON.parse(JSON.stringify(prev)) as Character) : null;
+        set((s) => { const m = mine(s.data); if (m) apply(m); });
+        try { return await run(); }
+        catch (e) { if (before) set((s) => { const i = s.data.chars.findIndex((c) => c.id === before.id); if (i >= 0) s.data.chars[i] = before; }); throw e; }
+      };
 
       return {
         data: LIVE ? { ...seed(), chars: [], posts: [], rooms: [], dormMsgs: {}, threads: [], events: [], items: [], jobs: [], notifs: [], notice: null, adminLog: [] } : seed(),
@@ -181,6 +195,8 @@ export const useStore = create<State>()(
         adminChats: {},
         dms: {},
         adminNotifs: [],
+        alt: null,
+        altNotifs: [],
         postLimit: 20,
         postsHasMore: true,
 
@@ -279,13 +295,23 @@ export const useStore = create<State>()(
         enterDorm: async (dormId) => { if (LIVE) return L().enterDorm(dormId); set((s) => { const m = mine(s.data); if (!m || !(m.inv.key > 0)) return; addInv(m, "key", -1); m.visit = { dorm: dormId, until: get().now() + 24 * H }; }); },
 
         ration: async () => {
-          if (LIVE) return L().ration();
+          if (LIVE) {
+            const me0 = mine(get().data); const st0 = get().data.stage;
+            const guess = me0 ? RATION[gIdx(scoresFor(st0, me0)[kwIdFor(st0, me0)] ?? 0)] : 0;
+            return optimistic((m) => { addInv(m, "ration", guess); m.ration = { day: ymd(new Date(get().now())) }; }, () => L().ration());
+          }
           let n = 0;
           set((s) => { const m = mine(s.data); if (!m || rationToday(m, get().now())) return; n = RATION[gIdx(scoresFor(s.data.stage, m)[kwIdFor(s.data.stage, m)] ?? 0)]; addInv(m, "ration", n); m.ration = { day: ymd(new Date(get().now())) }; });
           return n;
         },
         studyStart: async (subjectId, useJokbo) => {
-          if (LIVE) return L().studyStart(subjectId, useJokbo);
+          if (LIVE) return optimistic((m) => {
+            const now = get().now(); const day = ymd(new Date(now));
+            if (subjectId === kwIdFor(get().data.stage, m)) addInv(m, "ration", -KW_COST);
+            const jb = useJokbo && (m.inv.jokbo || 0) > 0; if (jb) addInv(m, "jokbo", -1);
+            m.study = m.study?.day === day ? { day, n: m.study.n + 1 } : { day, n: 1 };
+            m.studyJob = { subject: subjectId, start: now, jokbo: jb };
+          }, () => L().studyStart(subjectId, useJokbo));
           let err: string | null = null;
           set((s) => {
             const m = mine(s.data); if (!m) return; const now = get().now(); const day = ymd(new Date(now));
@@ -318,7 +344,13 @@ export const useStore = create<State>()(
           return out;
         },
         studyCancel: async () => {
-          if (LIVE) return L().studyCancel();
+          if (LIVE) return optimistic((m) => {
+            const sj = m.studyJob; if (!sj) return;
+            if (sj.subject === "kw" || sj.subject === "kw2") addInv(m, "ration", KW_COST);
+            if (sj.jokbo) addInv(m, "jokbo", 1);
+            if (m.study?.day === ymd(new Date(get().now()))) m.study.n = Math.max(0, m.study.n - 1);
+            m.studyJob = null;
+          }, () => L().studyCancel());
           set((s) => {
             const m = mine(s.data); const sj = m?.studyJob; if (!m || !sj) return;
             if (sj.subject === "kw" || sj.subject === "kw2") addInv(m, "ration", KW_COST);
@@ -328,7 +360,10 @@ export const useStore = create<State>()(
           });
         },
         jobCancel: async () => {
-          if (LIVE) return L().jobCancel();
+          if (LIVE) return optimistic((m) => {
+            if (m.jobDay?.day === ymd(new Date(get().now()))) m.jobDay.n = Math.max(0, m.jobDay.n - 1);
+            m.job = null;
+          }, () => L().jobCancel());
           set((s) => {
             const m = mine(s.data); if (!m?.job) return;
             if (m.jobDay?.day === ymd(new Date(get().now()))) m.jobDay.n = Math.max(0, m.jobDay.n - 1);
@@ -336,7 +371,11 @@ export const useStore = create<State>()(
           });
         },
         jobStart: async (jobId) => {
-          if (LIVE) return L().jobStart(jobId);
+          if (LIVE) return optimistic((m) => {
+            const now = get().now(); const day = ymd(new Date(now));
+            m.jobDay = m.jobDay?.day === day ? { ...m.jobDay, n: m.jobDay.n + 1 } : { day, n: 1, bonus: 0 };
+            m.job = { id: jobId, start: now };
+          }, () => L().jobStart(jobId));
           let err: string | null = null;
           set((s) => {
             const m = mine(s.data); if (!m) return; const now = get().now();

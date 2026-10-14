@@ -100,7 +100,7 @@ export function StudySheet({ initialJokbo = false }: { initialJokbo?: boolean })
             <button
               key={s.id}
               disabled={disabled || busy !== null}
-              onClick={async () => { setBusy(s.id); let err: string | null; try { err = await studyStart(s.id, jokbo); } catch (e) { err = (e as Error).message; } finally { setBusy(null); } if (err) { toast(err); return; } closeSheet(); toast(`${s.name} 공부를 시작했어요. 1시간 뒤에 끝나요.`); }}
+              onClick={() => { setBusy(s.id); closeSheet(); toast(`${s.name} 공부를 시작했어요. 1시간 뒤에 끝나요.`); studyStart(s.id, jokbo).then((err) => { if (err) toast(err); }).catch((e) => toast(`공부를 시작하지 못했어요. ${(e as Error).message}`)); }}
               className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 rounded-2xl border border-line bg-bg px-4 py-3.5 text-left transition-colors enabled:hover:border-gold/60 disabled:opacity-40"
             >
               <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{s.name}{busy === s.id && <span className="ml-2 text-xs font-normal text-gold">시작하는 중…</span>}</span>
@@ -176,7 +176,7 @@ export function JobSheet() {
             <button
               key={j.id}
               disabled={left <= 0 || busy !== null}
-              onClick={async () => { setBusy(j.id); let err: string | null; try { err = await jobStart(j.id); } catch (e) { err = (e as Error).message; } finally { setBusy(null); } if (err) { toast(err); return; } closeSheet(); toast("아르바이트를 시작했어요. 2시간 뒤에 완료할 수 있어요."); }}
+              onClick={() => { setBusy(j.id); closeSheet(); toast("아르바이트를 시작했어요. 2시간 뒤에 완료할 수 있어요."); jobStart(j.id).then((err) => { if (err) toast(err); }).catch((e) => toast(`아르바이트를 시작하지 못했어요. ${(e as Error).message}`)); }}
               className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 rounded-2xl border border-line bg-bg px-4 py-3.5 text-left transition-colors enabled:hover:border-gold/60 disabled:opacity-40"
             >
               <span className="font-semibold underline-offset-[3px] group-enabled:group-hover:underline">{j.name}{busy === j.id && <span className="ml-2 text-xs font-normal text-gold">시작하는 중…</span>}</span>
@@ -203,11 +203,10 @@ function CancelConfirm({ what, detail, onBack }: { what: "공부" | "아르바�
       <p className="mb-3 rounded-2xl bg-crit/10 px-4 py-3 text-[13.5px] leading-relaxed text-crit">지금까지 지난 시간은 사라지고 되돌릴 수 없어요.</p>
       <SheetActions>
         <Button variant="ghost" disabled={busy} onClick={onBack}>계속하기</Button>
-        <Button disabled={busy} className="bg-crit text-white" onClick={async () => {
-          setBusy(true);
-          try { await (what === "공부" ? studyCancel() : jobCancel()); closeSheet(); toast(`${what}를 그만뒀어요.`); }
-          catch (e) { toast((e as Error).message); setBusy(false); }
-        }}>{busy ? "그만두는 중…" : "그만두기"}</Button>
+        <Button disabled={busy} className="bg-crit text-white" onClick={() => {
+          setBusy(true); closeSheet(); toast(`${what}를 그만뒀어요.`);
+          (what === "공부" ? studyCancel() : jobCancel()).catch((e) => toast(`그만두지 못했어요. ${(e as Error).message}`));
+        }}>그만두기</Button>
       </SheetActions>
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, BellRing, BookOpen, ChevronRight, KeyRound, Lock, LogOut, Mail, MessageSquare, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
+import { ArrowLeftRight, AtSign, BellRing, BookOpen, ChevronRight, KeyRound, Lock, LogOut, Mail, MessageSquare, Moon, Monitor, Plus, ShieldCheck, Sun, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { H } from "@/lib/constants";
@@ -13,6 +13,7 @@ import { Avatar } from "../ui/identity";
 import { SheetActions, SheetTitle } from "../ui/overlays";
 import { Button, Chip, ChipRow, Field, Input, Note, RowSub, RowTitle, SectionHead, rowCls } from "../ui/primitives";
 import { useState } from "react";
+import { AccountsSheet } from "./AccountsSheet";
 
 function MenuRow({ href, icon, title, sub, onClick }: { href?: string; icon: React.ReactNode; title: string; sub: string; onClick?: () => void }) {
   const inner = (
@@ -82,6 +83,7 @@ export function MoreView() {
           <p className="mt-1 text-xs text-muted">밤에 역극하는 사용자를 위해 어두운 화면을 기본 지원해요.</p>
         </div>
         {(me || LIVE) && <MenuRow icon={<AtSign size={ic} strokeWidth={1.6} />} title="오너 닉네임" sub={(LIVE ? st.session.nick : me?.ownerNick) || "아직 없어요 · 눌러서 정하기"} onClick={() => openSheet(<NickSheet />)} />}
+        {LIVE && (admin || st.alt) && <MenuRow icon={<ArrowLeftRight size={ic} strokeWidth={1.6} />} title="계정 전환" sub={st.alt ? `두 계정 로그인 중${st.altNotifs.some((n) => !n.read) ? " · 다른 계정에 새 알림" : ""}` : "캐릭터 계정을 함께 로그인해 두기"} onClick={() => openSheet(<AccountsSheet />)} />}
         {LIVE && <MenuRow icon={<KeyRound size={ic} strokeWidth={1.6} />} title="비밀번호 변경" sub={st.session.email ?? ""} onClick={() => openSheet(<PasswordSheet />)} />}
         <MenuRow icon={<LogOut size={ic} strokeWidth={1.6} />} title="로그아웃" sub="계정에서 나가기" onClick={async () => { await st.logout(); router.replace("/"); }} />
       </div>

@@ -17,6 +17,7 @@ import { uid as mkId } from "./format";
 import type { CalEvent, Character, DormId, Item, Job, Msg, Notif, NotifKind, Post, Profile, Room, Stage, Thread } from "./types";
 import { dmKey, useStore, type ChatMsg, type ChatThread, type DmThread, type JobResult, type NewCharacter, type PrivateProfile, type StudyResult } from "./store";
 import { increment } from "firebase/firestore";
+import { altAuth, startAlt } from "./accounts";
 
 export interface MemberUser { uid: string; email: string; status: "pending" | "member" | "suspended"; charId: string | null; createdAt?: number; nick?: string }
 
@@ -44,6 +45,7 @@ const fail = (what: string) => (e: unknown) => {
 export function startLive() {
   if (started) return;
   started = true;
+  startAlt();
   onAuthStateChanged(fbAuth(), async (user) => {
     unsub("");
     ready = { settings: false, chars: false };
@@ -249,7 +251,8 @@ export const auth = {
     await setDoc(doc(fbDb(), "users", cred.user.uid), { email, nick: nick.slice(0, 20), status: "pending", charId: null, agreedRules: true, createdAt: Date.now() });
     return cred;
   },
-  signOut: () => signOut(fbAuth()),
+  /** 로그아웃은 두 번째 계정까지 같이 나가요. */
+  signOut: async () => { await signOut(altAuth()).catch(() => {}); await signOut(fbAuth()); },
   /** 현재 비밀번호로 다시 확인한 뒤 새 비밀번호로 바꿔요. */
   changePassword: async (current: string, next: string) => {
     const u = fbAuth().currentUser;

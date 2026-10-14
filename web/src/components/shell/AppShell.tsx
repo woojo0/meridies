@@ -81,6 +81,26 @@ function useNotificationAlerts() {
   }, [notifs, adminNotifs, me, admin, prefs, pathname]);
 }
 
+/** 함께 로그인한 두 번째 계정의 새 알림도 토스트 + 알림음 */
+function useAltNotificationAlerts() {
+  const alt = useStore((s) => s.alt);
+  const altNotifs = useStore((s) => s.altNotifs);
+  const chars = useStore((s) => s.data.chars);
+  const seen = useRef<Set<string> | null>(null);
+  const altUid = alt?.uid ?? null;
+  useEffect(() => { seen.current = null; }, [altUid]);
+  useEffect(() => {
+    if (!alt) return;
+    if (!seen.current) { seen.current = new Set(altNotifs.map((n) => n.id)); return; }
+    const fresh = altNotifs.filter((n) => !n.read && !seen.current!.has(n.id));
+    fresh.forEach((n) => seen.current!.add(n.id));
+    const show = fresh.filter((n) => (alt.admin ? n.kind === "adminDm" : notifyOn(alt.notify, n.kind)));
+    if (!show.length) return;
+    const who = alt.admin ? "운영자" : chars.find((c) => c.id === alt.charId)?.name ?? "다른 계정";
+    toast(`[${who}] ${show[0].text}${show.length > 1 ? ` 외 ${show.length - 1}건` : ""}`); chime();
+  }, [alt, altNotifs, chars]);
+}
+
 export function Splash() {
   return (
     <div className="grid min-h-dvh place-items-center bg-bg">
@@ -136,6 +156,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
   const stage = useStore((s) => s.data.stage);
   const openDrawer = useOverlay((s) => s.openDrawer);
   useNotificationAlerts();
+  useAltNotificationAlerts();
 
   const liveError = useStore((s) => s.liveError);
   const signedIn = LIVE ? !!session.uid : !!session.charId;

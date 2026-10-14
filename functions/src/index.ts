@@ -18,6 +18,8 @@ import { DROPPED_AT_1, ELECTIVE_MIN, JOBS1, SUBJECTS1, materializeStage1, type S
 
 initializeApp();
 const db = getFirestore();
+// gRPC 대신 REST로 통신해요. 오래 쉬었다가 처음 요청할 때 연결을 새로 맺느라 몇 초씩 걸리던 걸 줄여요.
+db.settings({ preferRest: true });
 const REGION = "asia-northeast3";
 type Handler<T = unknown> = (req: CallableRequest<T>) => Promise<unknown>;
 const handler = <T = unknown>(h: Handler<T>) => h;
@@ -653,6 +655,13 @@ export const letterDelivery = onSchedule({ schedule: "every 5 minutes", region: 
   await b.commit();
 });
 
+/* ───────── 예열: api 인스턴스의 DB 연결이 식지 않게 4분마다 가볍게 한 번 읽어요 ───────── */
+HANDLERS["__warm"] = (async () => { await db.doc("settings/global").get(); return { ok: true }; }) as Handler<never>;
+export const keepWarm = onSchedule({ schedule: "every 4 minutes", region: REGION, memory: "128MiB" }, async () => {
+  const url = `https://${REGION}-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/api`;
+  await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: { action: "__warm" } }) }).catch(() => {});
+});
+
 /* ───────── 내보내기: 개별 함수 + 단일 진입점 api ───────── */
 HANDLERS["setAdmin"] = h_setAdmin as Handler<never>;
 export const setAdmin = fn(h_setAdmin);
@@ -695,10 +704,10 @@ export const closeSemester = fn(h_closeSemester);
  * 단일 진입점. 모든 요청이 같은 인스턴스를 쓰므로 콜드 스타트가 줄어요.
  * { action: "ration", data: {...} }
  */
-// 항상 1개를 켜 둬서(minInstances) 배급·공부·아르바이트가 깨우는 시간 없이 바로 응답해요.
-// 대기 요금을 줄이려고 CPU를 낮춘 사양(gcf_gen1 ≈ 0.17 vCPU)으로 두고, 그 사양은 동시 처리 1건이라 concurrency도 1이에요.
+// 상시 대기(minInstances)는 쓰지 않아요. 낮은 CPU로 켜 두면 쉬던 DB 연결을 다시 맺느라 오히려 몇 초씩 걸렸어요.
+// 대신 keepWarm이 4분마다 깨워서 인스턴스와 DB 연결을 데워 둬요. CPU 1개는 요청을 처리하는 동안만 과금돼요.
 // invoker: "public"은 브라우저에서 호출할 수 있게 하는 권한이에요. 로그인·멤버 확인은 각 처리기 안에서 해요.
-export const api = onCall<{ action: string; data?: unknown }>({ region: REGION, memory: "256MiB", cpu: "gcf_gen1", concurrency: 1, minInstances: 1, invoker: "public" }, async (req) => {
+export const api = onCall<{ action: string; data?: unknown }>({ region: REGION, memory: "256MiB", cpu: 1, concurrency: 20, minInstances: 0, invoker: "public" }, async (req) => {
   const h = HANDLERS[req.data?.action ?? ""];
   if (!h) throw new HttpsError("not-found", "알 수 없는 요청이에요.");
   return (h as Handler<unknown>)({ ...req, data: req.data.data } as CallableRequest<unknown>);

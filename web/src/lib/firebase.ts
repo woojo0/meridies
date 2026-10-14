@@ -2,7 +2,7 @@
  * Firebase 초기화. 값은 `web/.env.local`(NEXT_PUBLIC_FIREBASE_*)에서 읽어요.
  * 설정이 비어 있으면 앱은 데모(localStorage) 모드로 동작합니다.
  */
-import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, httpsCallable, type Functions } from "firebase/functions";
@@ -19,12 +19,15 @@ const config = {
 
 /** 설정이 모두 들어 있으면 true → 실제 서버 모드. */
 export const LIVE = Object.values(config).every(Boolean);
+/** 두 번째 계정용 앱도 같은 설정을 써요. */
+export const fbConfig = config;
 export const REGION = "asia-northeast3";
 
 let app: FirebaseApp | null = null;
 export function fbApp(): FirebaseApp {
   if (!LIVE) throw new Error("Firebase 설정이 없어요.");
-  if (!app) app = getApps().length ? getApp() : initializeApp(config);
+  // 두 번째 계정용 "alt" 앱이 먼저 생겨도 기본 앱을 정확히 집어요.
+  if (!app) app = getApps().find((a) => a.name === "[DEFAULT]") ?? initializeApp(config);
   return app;
 }
 export const fbAuth = (): Auth => getAuth(fbApp());

@@ -48,10 +48,10 @@ export function SunStrip() {
         ) : (
           <button
             disabled={busy}
-            onClick={async () => { setBusy(true); try { const n = await ration(); toast(n ? `솔리스 ${n}병을 배급받았어요. (광휘 실습 ${GRADES[g].k})` : "오늘 배급은 이미 받았어요."); } catch (e) { toast((e as Error).message); } finally { setBusy(false); } }}
+            onClick={() => { setBusy(true); toast(`솔리스 ${amt}병을 배급받았어요. (광휘 실습 ${GRADES[g].k})`); ration().catch((e) => toast(`배급을 받지 못했어요. ${(e as Error).message}`)).finally(() => setBusy(false)); }}
             className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-gold/45 bg-surface px-2.5 text-[11.5px] font-medium text-gold shadow-[0_1px_0_var(--gold-soft)] transition-colors hover:bg-gold-soft active:translate-y-px disabled:opacity-60"
           >
-            <FlaskConical size={12} strokeWidth={1.9} /> {busy ? "받는 중…" : `배급 ${amt}병`}
+            <FlaskConical size={12} strokeWidth={1.9} /> 배급 {amt}병
           </button>
         )}
       </div>

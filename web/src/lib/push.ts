@@ -5,6 +5,7 @@
 import { collection, deleteDoc, doc, onSnapshot, setDoc, type Unsubscribe } from "firebase/firestore";
 import { deleteToken, getMessaging, getToken, isSupported } from "firebase/messaging";
 import { fbApp, fbDb } from "./firebase";
+import { altAuth, altDb } from "./accounts";
 import { useStore } from "./store";
 
 export const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? "";
@@ -51,13 +52,24 @@ export async function registerThisDevice(): Promise<PushDevice> {
   const dev: PushDevice = { token, label, kind, at: Date.now() };
   await setDoc(doc(fbDb(), `users/${uid}/devices`, token), { label, kind, at: dev.at, ua: navigator.userAgent.slice(0, 200) });
   try { localStorage.setItem(LS_KEY, token); } catch { /* 무시 */ }
+  await linkThisDeviceToAlt().catch(() => {});
   return dev;
+}
+
+/** 함께 로그인한 두 번째 계정에도 이 기기를 등록해서 그 계정 알림도 이 기기로 오게 해요. */
+export async function linkThisDeviceToAlt() {
+  const token = thisDeviceToken(); const other = altAuth().currentUser;
+  if (!token || !other) return;
+  const { label, kind } = deviceLabel();
+  await setDoc(doc(altDb(), `users/${other.uid}/devices`, token), { label, kind, at: Date.now(), ua: navigator.userAgent.slice(0, 200) });
 }
 
 /** 기기 빼기. 이 기기면 브라우저 토큰도 지워요. */
 export async function removeDevice(token: string) {
   const uid = useStore.getState().session.uid; if (!uid) throw new Error("로그인이 필요해요.");
   await deleteDoc(doc(fbDb(), `users/${uid}/devices`, token));
+  const other = altAuth().currentUser;
+  if (other) await deleteDoc(doc(altDb(), `users/${other.uid}/devices`, token)).catch(() => {});
   if (thisDeviceToken() === token) {
     try { localStorage.removeItem(LS_KEY); } catch { /* 무시 */ }
     try { if (await isSupported()) await deleteToken(getMessaging(fbApp())); } catch { /* 이미 없음 */ }

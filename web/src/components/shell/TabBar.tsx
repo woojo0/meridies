@@ -1,13 +1,16 @@
 "use client";
 
-import { Calendar, Home, LogOut, MessageSquare, MoreHorizontal, Rows3, ShoppingBag, Users, Mail } from "lucide-react";
+import { Calendar, Home, LogOut, MessageSquare, MoreHorizontal, Rows3, ShoppingBag, Users, Mail, ArrowLeftRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cx, money } from "@/lib/format";
 import { useMe } from "@/lib/hooks";
 import { useStore } from "@/lib/store";
+import { LIVE } from "@/lib/firebase";
+import { useOverlay } from "@/lib/overlay";
 import { Avatar, DormDot, Logo } from "../ui/identity";
+import { AccountsSheet, useAccountLabels } from "../more/AccountsSheet";
 
 export const TABS = [
   { href: "/timeline", label: "타임라인", Icon: Rows3 },
@@ -35,6 +38,9 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
   const email = useStore((s) => s.session.email);
   const logout = useStore((s) => s.logout);
   const admin = useStore((s) => s.session.admin);
+  const alt = useStore((s) => s.alt);
+  const altUnread = useStore((s) => s.altNotifs.reduce((a, n) => a + (n.read ? 0 : 1), 0));
+  const otherLabel = useAccountLabels().other;
   const inboxUnread = useStore((s) => s.session.admin ? Object.values(s.adminChats).reduce((a, t) => a + (t.unreadAdmin || 0), 0) : (s.session.charId ? s.adminChats[s.session.charId]?.unreadChar ?? 0 : 0));
   const dmUnread = useStore((s) => s.session.charId ? Object.values(s.dms).reduce((a, t) => a + (t.unread?.[s.session.charId!] ?? 0), 0) : 0);
   const item = (href: string, label: string, Icon: typeof Rows3, desktopOnly = false) => {
@@ -88,6 +94,13 @@ export function TabBar({ hidden }: { hidden?: boolean }) {
               <span className="flex items-center justify-end gap-1.5 text-xs text-muted"><span className="tnum">{money(me.money)}</span><DormDot id={me.dorm} /></span>
             </span>
           </Link>
+        )}
+        {(admin || alt) && LIVE && (
+          <button onClick={() => useOverlay.getState().openSheet(<AccountsSheet />)} className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-[13px] text-muted transition-colors hover:bg-sunk/70 hover:text-ink">
+            <ArrowLeftRight size={16} strokeWidth={1.7} />
+            <span className="min-w-0 flex-1 truncate">{alt ? `${otherLabel}(으)로 전환` : "계정 전환"}</span>
+            {altUnread > 0 && <span className="rounded-full bg-crit px-1.5 text-[10.5px] font-bold leading-4 text-white">{altUnread}</span>}
+          </button>
         )}
         <button onClick={async () => { await logout(); router.replace("/"); }} className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-[13px] text-muted transition-colors hover:bg-sunk/70 hover:text-ink">
           <LogOut size={16} strokeWidth={1.7} />
